@@ -1,6 +1,7 @@
 const $ = window.jQuery = require('./jquery-2.2.3.min.js');
 const InkProject = require('./inkProject.js').InkProject;
 const EditorView = require('./editorView.js').EditorView;
+const NavView = require('./navView.js').NavView;
 
 function collectSymbols() {
   const project = InkProject.currentProject;
@@ -316,7 +317,84 @@ function renderGraph($svg) {
 
 exports.FlowView = {
   show: function() {
+    // Build or reuse a sidebar panel so it resizes like the Knot Browser
+    const $sidebar = $('.sidebar');
+    let $panel = $('#flow-wrapper');
+    if ($panel.length === 0) {
+      $panel = $('<div class="nav-wrapper hidden" id="flow-wrapper"></div>');
+      const $title = $('<nav class="nav-group"><h5 class="nav-group-title">Narrative Flow</h5></nav>');
+      const $tabs = $('<div class="flowTabs"><button class="tab active" data-tab="list">List</button><button class="tab" data-tab="graph">Graph</button></div>');
+      const $body = $('<div class="flowBody"></div>');
+      const $list = $('<ul class="flowList"></ul>');
+      const $graph = $('<div class="flowGraph"><svg/></div>').hide();
+      $panel.append($title).append($tabs).append($body.append($list).append($graph));
+      $sidebar.prepend($panel);
+
+      // Styles for the panel
+      if (!document.getElementById('flowViewGraphStyles')) {
+        const style = `
+          <style id="flowViewGraphStyles">
+            #flow-wrapper { position: absolute; top: 0; bottom: 0; overflow:auto; }
+            #flow-wrapper .flowTabs { display:flex; gap:8px; padding:6px 10px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+            #flow-wrapper .flowTabs .tab { background: none; color:#444; border: 1px solid rgba(0,0,0,0.15); padding: 3px 10px; border-radius: 4px; cursor: pointer; }
+            .dark #flow-wrapper .flowTabs .tab { color:#bbb; border-color: rgba(255,255,255,0.15); }
+            #flow-wrapper .flowTabs .tab.active { color: inherit; border-color:#5aa9e6; }
+            #flow-wrapper .flowBody { padding: 8px 10px 12px; }
+            #flow-wrapper .flowList { list-style:none; margin:0; padding:0; }
+            #flow-wrapper .flowItem { padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.06); }
+            .dark #flow-wrapper .flowItem { border-color: rgba(255,255,255,0.06); }
+            #flow-wrapper .flowItem .type { display:inline-block; min-width: 56px; font-size: 11px; opacity: 0.7; text-transform:uppercase; }
+            #flow-wrapper .flowItem a { color:#2a72b5; text-decoration:none; }
+            .dark #flow-wrapper .flowItem a { color:#8fd3ff; }
+            #flow-wrapper .flowItem a:hover { text-decoration:underline; }
+            #flow-wrapper .flowItem .file { float:right; opacity:0.7; font-size:11px; }
+            #flow-wrapper .flowGraph { width:100%; height: calc(100% - 110px); overflow:auto; }
+            #flow-wrapper .flowGraph svg { width: 1000px; height: 100%; min-height: 600px; }
+            #flow-wrapper .flowGraph .lane { fill: rgba(0,0,0,0.04); }
+            .dark #flow-wrapper .flowGraph .lane { fill: rgba(255,255,255,0.03); }
+            #flow-wrapper .flowGraph .node { fill: #333; stroke: #5aa9e6; stroke-width: 1; }
+            .dark #flow-wrapper .flowGraph .node { fill: #333; }
+            #flow-wrapper .flowGraph .node.unresolved { stroke: #e65a5a; }
+            #flow-wrapper .flowGraph .label { fill: #fff; font-size: 12px; pointer-events: none; }
+            #flow-wrapper .flowGraph .edge { stroke: #888; stroke-width: 1; fill: none; }
+          </style>`;
+        $('head').append(style);
+      }
+
+      // Tabs toggle
+      $tabs.on('click', '.tab', (e) => {
+        const tab = $(e.currentTarget).data('tab');
+        $tabs.find('.tab').removeClass('active');
+        $(e.currentTarget).addClass('active');
+        if (tab === 'graph') {
+          $list.hide();
+          $graph.show();
+          renderGraph($graph.find('svg'));
+        } else {
+          $graph.hide();
+          $list.show();
+        }
+      });
+    }
+
+    // Populate list
     const items = collectSymbols();
-    buildDrawer(items);
+    const $list = $panel.find('.flowList');
+    $list.empty();
+    items.forEach(it => {
+      const fileLabel = it.file ? it.file.relativePath() : '';
+      const $li = $(`<li class=\"flowItem ${it.type.toLowerCase()}\"><span class=\"type\">${it.type}</span> <a href=\"#\">${it.name}</a> <span class=\"file\">${fileLabel}</span></li>`);
+      $li.find('a').on('click', (e) => {
+        e.preventDefault();
+        if (it.file) {
+          InkProject.currentProject.showInkFile(it.file);
+          EditorView.gotoLine(it.row + 1);
+        }
+      });
+      $list.append($li);
+    });
+
+    // Toggle the panel using NavView so it resizes and pushes the editor
+    NavView.toggle('#flow-wrapper');
   }
 };
