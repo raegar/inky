@@ -18,6 +18,7 @@ require("./contextmenu.js");
 
 const EditorView = require("./editorView.js").EditorView;
 const PlayerView = require("./playerView.js").PlayerView;
+const FlowView = require("./flowView.js").FlowView;
 const ToolbarView = require("./toolbarView.js").ToolbarView;
 const NavView = require("./navView.js").NavView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
@@ -342,6 +343,10 @@ ipc.on("set-audio-controls-visible", (event, visible) => {
 });
 ipc.on("set-audio-muted", (event, muted) => {
     PlayerView.setAudioMuted(muted);
+});
+
+ipc.on('show-flow-view', () => {
+    try { FlowView.show(); } catch (e) { console.error('FlowView error', e); }
 });
 
 

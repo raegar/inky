@@ -405,6 +405,11 @@ function refresh() {
                     click: callbacks.addWatchExpression
                 },
                 {
+                    label: i18n._('Narrative Flow...'),
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.showFlow
+                },
+                {
                     label: i18n._('Tags visible'),
                     type: "checkbox",
                     checked: true,
