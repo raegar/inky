@@ -40,8 +40,13 @@ function ensurePanel() {
         .dark #flow-wrapper .flowTabs .tab { color:#bbb; border-color: rgba(255,255,255,0.15); }
         #flow-wrapper .flowTabs .tab.active { border-color:#5aa9e6; }
         #flow-wrapper .flowBody { display:flex; gap:8px; padding: 8px 10px 12px; }
-        #flow-wrapper .flowLabels { flex: 0 0 180px; overflow:auto; }
-        #flow-wrapper .flowGraph { flex: 1 1 auto; overflow:auto; }
+        /* Make the list column responsive: grows with panel, min 180px, max ~60% */
+        #flow-wrapper .flowLabels { flex: 1 1 40%; min-width: 180px; max-width: 60%; overflow:auto; }
+        /* Graph shares remaining space and shrinks when list grows */
+        #flow-wrapper .flowGraph { flex: 2 1 60%; min-width: 200px; overflow:auto; }
+        /* In list mode, let the list take the full width (no wasted space) */
+        #flow-wrapper.mode-list .flowLabels { flex: 1 1 auto; max-width: none; }
+        #flow-wrapper.mode-list .flowGraph { display: none !important; }
         #flow-wrapper .flowList { list-style:none; margin:0; padding:0; }
         #flow-wrapper .flowList .flowRow { display:flex; align-items:center; height:24px; }
         #flow-wrapper .flowItem { width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid rgba(0,0,0,0.06); padding:3px 2px; font-size:12px; }
@@ -62,18 +67,46 @@ function ensurePanel() {
     $('head').append(style);
   }
 
-  // tab logic
+  // override rules to support independent show/hide toggles
+  if (!document.getElementById('flowPanelToggleStyles')) {
+    const toggleStyle = `
+      <style id="flowPanelToggleStyles">
+        #flow-wrapper .flowLabels { display: none; }
+        #flow-wrapper .flowGraph { display: none; }
+        #flow-wrapper.show-list .flowLabels { display: block; }
+        #flow-wrapper.show-graph .flowGraph { display: block; }
+        #flow-wrapper.show-list:not(.show-graph) .flowLabels { flex: 1 1 auto; max-width: none; }
+        #flow-wrapper.show-graph:not(.show-list) .flowGraph { flex: 1 1 auto; min-width: 0; }
+      </style>`;
+    $('head').append(toggleStyle);
+  }
+
+  // tab logic: independent toggles
   $tabs.on('click', '.tab', (e) => {
-    const tab = $(e.currentTarget).data('tab');
-    $tabs.find('.tab').removeClass('active');
-    $(e.currentTarget).addClass('active');
+    const $btn = $(e.currentTarget);
+    const tab = $btn.data('tab');
+    const isActive = $btn.hasClass('active');
     if (tab === 'graph') {
-      $labels.hide();
-      $graph.show();
-      renderGraph($graph.find('svg'));
-    } else {
-      $graph.hide();
-      $labels.show();
+      if (isActive) {
+        $panel.removeClass('show-graph');
+        $btn.removeClass('active');
+        $graph.hide();
+      } else {
+        $panel.addClass('show-graph');
+        $btn.addClass('active');
+        $graph.show();
+        renderGraph($graph.find('svg'));
+      }
+    } else { // list
+      if (isActive) {
+        $panel.removeClass('show-list');
+        $btn.removeClass('active');
+        $labels.hide();
+      } else {
+        $panel.addClass('show-list');
+        $btn.addClass('active');
+        $labels.show();
+      }
     }
   });
 
@@ -83,6 +116,10 @@ function ensurePanel() {
     renderGraph($graph.find('svg'));
   });
   ro.observe($graph[0]);
+
+  // start with list visible, graph hidden
+  $panel.addClass('show-list');
+  $tabs.find('.tab[data-tab="list"]').addClass('active');
 
   // filter
   $filter.on('input', () => populateList($panel));
@@ -144,7 +181,8 @@ function populateList($panel) {
   beats.forEach(b => {
     if (filterText && !(b.name && b.name.toLowerCase().includes(filterText))) return;
     const fileLabel = b.file ? b.file.relativePath() : '';
-    const $li = $(`<li class="flowRow"><div class="flowItem"><span class="type">${b.type}</span> <a href="#">${b.name || '(untitled)'} </a><span class="file">${fileLabel}</span></div></li>`);
+    // Keep file path as a tooltip only to reduce visual clutter
+    const $li = $(`<li class="flowRow"><div class="flowItem"><span class="type">${b.type}</span> <a href="#" title="${fileLabel}">${b.name || '(untitled)'} </a></div></li>`);
     $li.find('a').on('click', (e) => {
       e.preventDefault();
       if (b.file) { InkProject.currentProject.showInkFile(b.file); EditorView.gotoLine((b.row||0)+1); }
@@ -160,6 +198,8 @@ function computeGraph() {
   const nodesById = new Map();
   const nodesByName = new Map();
   const edges = [];
+  const edgeSet = new Set();
+  const SINK_TARGETS = new Set(['DONE','END']);
   const makeId = (file, name) => `${file ? file.relativePath() : '?'}::${name}`;
   const ensure = (file, name, type, row) => {
     const id = makeId(file, name);
@@ -192,12 +232,57 @@ function computeGraph() {
         }
         if (tok.type === 'divert.target' && tok.value) {
           const src = top();
-          if (src) { const from = ensure(src.file, src.name, src.type, src.row); edges.push({ from: from.id, toName: tok.value.trim() }); }
+          if (src) {
+            const target = tok.value.trim();
+            if (SINK_TARGETS.has(target)) continue;
+            const from = ensure(src.file, src.name, src.type, src.row);
+            const key = `${from.id}->${target}`;
+            if (!edgeSet.has(key)) { edgeSet.add(key); edges.push({ from: from.id, toName: target }); }
+          }
         }
       }
     } catch(_){}
   });
-  edges.forEach(e => { const dest = nodesByName.get(e.toName); e.to = dest ? dest.id : ensure(null, e.toName, 'Unresolved', 0).id; });
+
+  // Secondary robust pass: regex scan for '-> target' and use symbols.flowAtPos to find source
+  (project.files || []).forEach(f => {
+    try {
+      if (!f || !f.symbols || !f.getAceSession) return;
+      const session = f.getAceSession();
+      const lineCount = session.getLength();
+      const re = /\-\>\s*([A-Za-z0-9_\.]+)/g;
+      for (let row = 0; row < lineCount; row++) {
+        const text = session.getLine(row);
+        re.lastIndex = 0;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          const target = m[1];
+          if (SINK_TARGETS.has(target)) continue;
+          // Identify the owning flow at this row
+          let owner = null;
+          try {
+            const syms = f.symbols.flowAtPos({ row, column: 0 });
+            if (syms) {
+              if (syms.Stitch) owner = syms.Stitch;
+              else if (syms.Knot) owner = syms.Knot;
+            }
+          } catch(_) {}
+          if (owner) {
+            const from = ensure(owner.inkFile, owner.name, owner.flowType.name, owner.row);
+            const key = `${from.id}->${target}`;
+            if (!edgeSet.has(key)) { edgeSet.add(key); edges.push({ from: from.id, toName: target }); }
+          }
+        }
+      }
+    } catch(_){}
+  });
+  edges.forEach(e => {
+    if (SINK_TARGETS.has(e.toName)) { e.to = null; return; }
+    const dest = nodesByName.get(e.toName);
+    e.to = dest ? dest.id : ensure(null, e.toName, 'Unresolved', 0).id;
+  });
+  // Drop any edges with no resolved destination (e.g. DONE/END sinks)
+  for (let i = edges.length - 1; i >= 0; i--) { if (!edges[i].to) edges.splice(i,1); }
   const nodes = Array.from(nodesById.values());
   nodes.sort((a,b)=>{ const fa=a.file? a.file.relativePath():'~'; const fb=b.file? b.file.relativePath():'~'; if(fa!==fb) return fa.localeCompare(fb); return a.row-b.row; });
   return { nodes, edges };
