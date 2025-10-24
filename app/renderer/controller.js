@@ -20,6 +20,7 @@ const EditorView = require("./editorView.js").EditorView;
 const PlayerView = require("./playerView.js").PlayerView;
 const ToolbarView = require("./toolbarView.js").ToolbarView;
 const NavView = require("./navView.js").NavView;
+const FlowView = require("./flowView.js").FlowView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
 const LiveCompiler = require("./liveCompiler.js").LiveCompiler;
 const InkProject = require("./inkProject.js").InkProject;
@@ -342,6 +343,11 @@ ipc.on("set-audio-controls-visible", (event, visible) => {
 });
 ipc.on("set-audio-muted", (event, muted) => {
     PlayerView.setAudioMuted(muted);
+});
+
+// Narrative Flow panel toggle
+ipc.on('toggle-flow-view', () => {
+    try { FlowView.toggle(); } catch (e) { console.error('FlowView', e); }
 });
 
 

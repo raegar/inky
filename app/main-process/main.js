@@ -216,6 +216,9 @@ app.on('ready', function () {
         gotoAnything: (item, focusedWindow) => {
             focusedWindow.webContents.send("goto-anything");
         },
+        showFlow: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.send('toggle-flow-view');
+        },
         addWatchExpression: (item, focusedWindow) => {
             focusedWindow.webContents.send("add-watch-expression");
         },
