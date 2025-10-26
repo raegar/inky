@@ -364,9 +364,35 @@ function renderGraph($svg) {
 }
 
 exports.FlowView = {
-  toggle: function(){
+  _refreshTimer: null,
+  _doRefresh: function() {
     const $panel = ensurePanel();
-    populateList($panel);
-    NavView.toggle('#flow-wrapper');
+    // Always update the list
+    try { populateList($panel); } catch(e) { console.error('FlowView.populateList', e); }
+    // Update graph only if its section is visible
+    try {
+      const $graph = $panel.find('.flowGraph');
+      if ($graph.is(':visible')) {
+        renderGraph($graph.find('svg'));
+      }
+    } catch(e) { console.error('FlowView.renderGraph', e); }
+  },
+  requestRefresh: function() {
+    // Debounce rapid edits
+    if (this._refreshTimer) clearTimeout(this._refreshTimer);
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      this._doRefresh();
+    }, 250);
+  },
+  refreshNow: function() {
+    if (this._refreshTimer) { clearTimeout(this._refreshTimer); this._refreshTimer = null; }
+    this._doRefresh();
+  },
+  toggle: function(buttonId){
+    const $panel = ensurePanel();
+    // Refresh immediately when toggled open/closed
+    this.refreshNow();
+    NavView.toggle('#flow-wrapper', buttonId);
   }
 };

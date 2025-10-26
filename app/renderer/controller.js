@@ -55,6 +55,7 @@ InkProject.setEvents({
         setImmediate(() => EditorView.setErrors(fileIssues));
         NavView.updateCurrentKnot(inkFile, EditorView.getCurrentCursorPos());
         NavHistory.addStep();
+        try { FlowView.requestRefresh(); } catch(_) {}
     }
 });
 
@@ -94,6 +95,7 @@ LiveCompiler.setEvents({
         PlayerView.prepareForNewPlaythrough(sessionId);
         EditorView.clearErrors();
         ToolbarView.clearIssueSummary();
+        try { FlowView.requestRefresh(); } catch(_) {}
     },
     selectIssue: gotoIssue,
     textAdded: (text) => {
@@ -231,6 +233,7 @@ EditorView.setEvents({
     "change": () => {
         LiveCompiler.setEdited();
         NavView.setKnots(InkProject.currentProject.activeInkFile);
+        try { FlowView.requestRefresh(); } catch(_) {}
     },
     "jumpToSymbol": (symbolName, contextPos) => {
         var foundSymbol = InkProject.currentProject.findSymbol(symbolName, contextPos);
@@ -272,6 +275,7 @@ ExpressionWatchView.setEvents({
 
 ToolbarView.setEvents({
     toggleSidebar: (id, buttonId) => { NavView.toggle(id, buttonId); },
+    toggleFlow: () => { try { require('./flowView.js').FlowView.toggle('.flow-toggle.button'); } catch(_) {} },
     navigateBack: () => NavHistory.back(),
     navigateForward: () => NavHistory.forward(),
     selectIssue: gotoIssue,
@@ -347,7 +351,7 @@ ipc.on("set-audio-muted", (event, muted) => {
 
 // Narrative Flow panel toggle
 ipc.on('toggle-flow-view', () => {
-    try { FlowView.toggle(); } catch (e) { console.error('FlowView', e); }
+    try { FlowView.toggle('.flow-toggle.button'); } catch (e) { console.error('FlowView', e); }
 });
 
 
