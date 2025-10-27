@@ -39,6 +39,21 @@
 	 * [7) Long example: crime scene](#7-long-example-crime-scene)
 	 * [8) Summary](#8-summary)
    * [Part 6: International character support in identifiers](#part-6-international-character-support-in-identifiers)
+  * [Part 7: Using Images](#part-7-using-images)
+    * [1) Inline Behaviour and Formatting](#1-inline-behaviour-and-formatting)
+    * [2) Conditional and Sequential Images](#2-conditional-and-sequential-images)
+    * [3) Adding Images via the Menu](#3-adding-images-via-the-menu)
+    * [4) Supported Formats and Tips](#4-supported-formats-and-tips)
+  * [Part 8: Using Audio](#part-8-using-audio)
+    * [1) Audio Behaviour](#1-audio-behaviour)
+    * [2) Stopping and Fading Audio](#2-stopping-and-fading-audio)
+    * [3) Adding Audio via Menu](#3-adding-audio-via-menu)
+    * [4) Player Controls and Mute](#4-player-controls-and-mute)
+    * [5) Conditional and Dynamic Use](#5-conditional-and-dynamic-use)
+    * [6) File Structure and Persistence](#6-file-structure-and-persistence)
+    * [7) Troubleshooting](#7-troubleshooting)
+    * [8) Format Advice](#8-format-advice)
+    * [9) Example Recap](#9-example-recap)
 </details>
 
 ## Introduction
@@ -3451,3 +3466,180 @@ Below is a listing of the currently supported identifier ranges.
 **NOTE!** ink files should be saved in UTF-8 format, which ensures that the above character ranges are supported.
 
 If a particular character range that you would like to use within identifiers isn't supported, feel free to open an [issue](/inkle/ink/issues/new) or [pull request](/inkle/ink/pulls) on the main ink repo.
+
+
+# Part 7: Using Images
+
+The regular version of **ink** doesn’t support images, but this version includes an additional tag that lets you illustrate your scenes.
+
+As described earlier, **ink** provides a simple system for tagging lines of content with hashtags:
+
+	A line of normal game-text. # colour it blue
+
+This version also includes a special tag that inserts an image immediately after the line of text:
+
+	An illustrated line of game-text. # IMAGE example.png
+
+### How it works
+- Save your image in a web-safe format (for example, `.png` or `.jpg`).
+- Place it in an `images/` folder alongside your `.ink` file.
+- Reference the file name exactly in your tag (for example, `# IMAGE filename.png`).
+- When the story runs, the tagged image is displayed immediately after the line of text.
+
+### Example folder structure
+
+	MyProject/
+	│
+	├─ story.ink
+	├─ images/
+	│   ├─ example.png
+	│   └─ anotherImage.jpg
+	└─ (other project files)
+
+## 1) Inline Behaviour and Formatting
+
+Images appear immediately after the line that calls them and scroll naturally with your text. They scale to the width of the playable view so they look good on desktop and mobile alike. They aren’t printed in your compiled text output.
+
+You can safely place an image tag mid-sentence or after punctuation:
+
+	The temple doors creak open. # IMAGE temple.png
+
+## 2) Conditional and Sequential Images
+
+`# IMAGE` is just a tag, so you can use it inside logic or branches:
+
+	{ hasTorch:
+		# IMAGE torch_lit.png
+	- else:
+		# IMAGE torch_dark.png
+	}
+
+You can also chain several for light comic‑panel storytelling:
+
+	# IMAGE panel1.png
+	He turned the corner.
+	# IMAGE panel2.png
+	The shadow moved.
+
+## 3) Adding Images via the Menu
+
+Choose Media → Images → Insert Image…
+- The chosen file is copied to your project’s `images/` folder.
+- If the name already exists, you’ll be asked whether to Use Existing, Add as New (auto‑renames), or Cancel.
+- The tag `# IMAGE filename.ext` is inserted at the cursor.
+- If the project isn’t saved yet, copying occurs once a save‑path exists.
+
+## 4) Supported Formats and Tips
+
+Supports `.png`, `.jpg`/`.jpeg`, `.gif`, `.svg`. Animated GIFs loop; SVGs scale cleanly at any size.
+
+Good practice:
+- keep filenames lowercase with no spaces
+- compress PNGs/JPEGs for speed
+- aim for ~1920px width backgrounds or ~1080px for mobile
+- keep consistent dimensions across sequences
+
+
+# Part 8: Using Audio
+
+The regular version of **ink** doesn’t support audio, but this version includes additional tags that let you play sounds or music alongside your story text.
+
+Just like with images, **ink** uses hashtags to tag lines of content with special instructions.
+
+	A line of normal game-text. # colour it blue
+
+This version introduces two special tags for audio playback:
+- `# AUDIO filename` — plays the audio file once.
+- `# AUDIOLOOP filename` — plays the audio file on a loop until it is stopped or replaced.
+
+For example:
+
+	The door slammed behind you. # AUDIO door_slam.mp3
+	A tense silence fills the air. # AUDIOLOOP eerie_drone.ogg
+
+### How it works
+- Save your audio in a web‑safe format (for example, `.mp3` or `.ogg`).
+- Place it in an `audio/` folder alongside your `.ink` file.
+- Reference the file name exactly in your tag (for example, `# AUDIO filename.mp3` or `# AUDIOLOOP filename.ogg`).
+- When the story runs:
+  - `AUDIO` plays the file once, then stops.
+  - `AUDIOLOOP` continues playing in the background until a new audio tag is triggered.
+- Useful applications:
+  - `AUDIO` → sound effects (for example, footsteps, sword clash, door creak).
+  - `AUDIOLOOP` → background ambience or music tracks.
+
+### Example folder structure
+
+	MyProject/
+	│
+	├─ story.ink
+	├─ images/
+	│   ├─ example.png
+	│   └─ anotherImage.jpg
+	├─ audio/
+	│   ├─ door_slam.mp3
+	│   ├─ eerie_drone.ogg
+	│   └─ battle_theme.mp3
+	└─ (other project files)
+
+## 1) Audio Behaviour
+
+`# AUDIO` plays once and removes itself when finished. `# AUDIOLOOP` plays continuously until replaced or stopped. If you omit an extension, the player searches for `.wav`, `.mp3`, `.ogg` (in that order).
+
+## 2) Stopping and Fading Audio
+
+Use `# AUDIOSTOP` to fade‑out and stop everything (loop + effects). Variants:
+
+	# AUDIOSTOP: loop	← fades and stops loop only
+	# AUDIOSTOP: once	← fades and stops one‑shots only
+
+Fades last roughly half a second for smooth transitions. Tags never print text.
+
+## 3) Adding Audio via Menu
+
+Media → Audio → Insert Audio Loop… or Insert Audio Effect…
+- Files copy into `audio/` (folder created if missing).
+- Duplicate names prompt: Use Existing / Add as New / Cancel.
+- Corresponding tag is inserted automatically.
+
+## 4) Player Controls and Mute
+
+Toggle under Media → Audio
+- Show Audio Controls → reveals HTML5 playback widgets.
+- Mute Audio → global on/off for all tracks.
+
+Both settings persist per view.
+
+## 5) Conditional and Dynamic Use
+
+	{ inForest:
+		# AUDIOLOOP forest.mp3
+	- else:
+		# AUDIOLOOP cave.ogg
+	}
+
+	# AUDIO thunder.wav
+	Lightning splits the sky.
+	# AUDIOSTOP: once
+
+## 6) File Structure and Persistence
+
+Audio files live in `audio/` beside your `.ink` file. Settings (loop state, mute, control visibility) persist until the story resets.
+
+## 7) Troubleshooting
+
+- Issue: “AUDIO not found” → Wrong path or extension → Check `audio/` folder and case.
+- Loop cuts out early → Later `# AUDIOSTOP` in same turn → Remove or move tag.
+- Controls missing → toggled off in menu → Enable Show Audio Controls.
+- Overlapping sounds → too many one‑shots → Add `# AUDIOSTOP: once` between.
+
+## 8) Format Advice
+
+Use `.mp3` or `.ogg` for loops/music. Use `.wav` for short effects. Keep file sizes small; ideally normalize loudness across assets.
+
+## 9) Example Recap
+
+	# AUDIO birds.wav
+	# AUDIOLOOP forest_ambience.mp3
+	# AUDIOSTOP: loop
+	# AUDIOSTOP

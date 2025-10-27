@@ -20,6 +20,7 @@ const EditorView = require("./editorView.js").EditorView;
 const PlayerView = require("./playerView.js").PlayerView;
 const ToolbarView = require("./toolbarView.js").ToolbarView;
 const NavView = require("./navView.js").NavView;
+const FlowView = require("./flowView.js").FlowView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
 const LiveCompiler = require("./liveCompiler.js").LiveCompiler;
 const InkProject = require("./inkProject.js").InkProject;
@@ -54,6 +55,7 @@ InkProject.setEvents({
         setImmediate(() => EditorView.setErrors(fileIssues));
         NavView.updateCurrentKnot(inkFile, EditorView.getCurrentCursorPos());
         NavHistory.addStep();
+        try { FlowView.requestRefresh(); } catch(_) {}
     }
 });
 
@@ -93,6 +95,7 @@ LiveCompiler.setEvents({
         PlayerView.prepareForNewPlaythrough(sessionId);
         EditorView.clearErrors();
         ToolbarView.clearIssueSummary();
+        try { FlowView.requestRefresh(); } catch(_) {}
     },
     selectIssue: gotoIssue,
     textAdded: (text) => {
@@ -230,6 +233,7 @@ EditorView.setEvents({
     "change": () => {
         LiveCompiler.setEdited();
         NavView.setKnots(InkProject.currentProject.activeInkFile);
+        try { FlowView.requestRefresh(); } catch(_) {}
     },
     "jumpToSymbol": (symbolName, contextPos) => {
         var foundSymbol = InkProject.currentProject.findSymbol(symbolName, contextPos);
@@ -271,6 +275,7 @@ ExpressionWatchView.setEvents({
 
 ToolbarView.setEvents({
     toggleSidebar: (id, buttonId) => { NavView.toggle(id, buttonId); },
+    toggleFlow: () => { try { require('./flowView.js').FlowView.toggle('.flow-toggle.button'); } catch(_) {} },
     navigateBack: () => NavHistory.back(),
     navigateForward: () => NavHistory.forward(),
     selectIssue: gotoIssue,
@@ -342,6 +347,11 @@ ipc.on("set-audio-controls-visible", (event, visible) => {
 });
 ipc.on("set-audio-muted", (event, muted) => {
     PlayerView.setAudioMuted(muted);
+});
+
+// Narrative Flow panel toggle
+ipc.on('toggle-flow-view', () => {
+    try { FlowView.toggle('.flow-toggle.button'); } catch (e) { console.error('FlowView', e); }
 });
 
 

@@ -6,7 +6,11 @@ var events = {
     rewind:   () => {},
     stepBack: () => {},
     selectIssue: () => {},
-    didSetTitle: () => {}
+    didSetTitle: () => {},
+    toggleSidebar: () => {},
+    toggleFlow: () => {},
+    navigateBack: () => {},
+    navigateForward: () => {}
 };
 
 function updateIssueSummary(issues, issueClickCallback) {
@@ -114,6 +118,11 @@ $(document).ready(function() {
 
     $("#toolbar .knot-toggle.button").on("click", function(event) {
         events.toggleSidebar("#knot-stitch-wrapper", ".knot-toggle.button");
+        event.preventDefault();
+    });
+
+    $("#toolbar .flow-toggle.button").on("click", function(event) {
+        events.toggleFlow();
         event.preventDefault();
     });
 
