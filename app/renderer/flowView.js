@@ -31,32 +31,43 @@ function ensurePanel() {
   if (!document.getElementById('flowPanelStyles')) {
     const style = `
       <style id="flowPanelStyles">
-        #flow-wrapper { position:absolute; top:0; bottom:0; overflow:auto; }
+        /* Override base nav-wrapper (which sets right:0) so jQuery width() takes effect */
+        #flow-wrapper { position:absolute; top:0; bottom:0; right:auto; overflow:hidden; }
+        /* Only display flex when not hidden so we don't override .hidden */
+        #flow-wrapper:not(.hidden) { display:flex; flex-direction:column; }
+        #flow-wrapper.hidden { display:none; }
         #flow-wrapper .flowControls { padding: 6px 10px; }
         #flow-wrapper .flowControls .flowFilter { width: 100%; box-sizing: border-box; padding: 4px 8px; }
         #flow-wrapper .flowHeader { display:flex; padding: 6px 10px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        #flow-wrapper .flowBody { flex: 1 1 auto; overflow: hidden; }
         #flow-wrapper .flowTabs { display:flex; gap:8px; }
         #flow-wrapper .flowTabs .tab { background:none; border:1px solid rgba(0,0,0,0.15); padding:3px 10px; border-radius:4px; cursor:pointer; color:#444; }
         .dark #flow-wrapper .flowTabs .tab { color:#bbb; border-color: rgba(255,255,255,0.15); }
         #flow-wrapper .flowTabs .tab.active { border-color:#5aa9e6; }
         #flow-wrapper .flowBody { display:flex; gap:8px; padding: 8px 10px 12px; }
-        /* Make the list column responsive: grows with panel, min 180px, max ~60% */
-        #flow-wrapper .flowLabels { flex: 1 1 40%; min-width: 180px; max-width: 60%; overflow:auto; }
-        /* Graph shares remaining space and shrinks when list grows */
-        #flow-wrapper .flowGraph { flex: 2 1 60%; min-width: 200px; overflow:auto; }
+        /* List sizes to its content (longest item) up to a cap; graph takes the rest */
+        #flow-wrapper .flowLabels { flex: 0 0 auto; width: max-content; min-width: 180px; max-width: 60%; overflow:auto; }
+        #flow-wrapper .flowGraph { flex: 1 1 auto; min-width: 200px; overflow:auto; height: 100%; }
+        #flow-wrapper .flowGraph { position: relative; }
+        #flow-wrapper .flowGraph svg { display:block; }
+        #flow-wrapper .flowGraph svg.zooming { cursor: zoom-in; }
         /* In list mode, let the list take the full width (no wasted space) */
         #flow-wrapper.mode-list .flowLabels { flex: 1 1 auto; max-width: none; }
         #flow-wrapper.mode-list .flowGraph { display: none !important; }
         #flow-wrapper .flowList { list-style:none; margin:0; padding:0; }
         #flow-wrapper .flowList .flowRow { display:flex; align-items:center; height:24px; }
-        #flow-wrapper .flowItem { width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid rgba(0,0,0,0.06); padding:3px 2px; font-size:12px; }
+        /* Let flow items size to their content so the list column can track intrinsic width */
+        #flow-wrapper .flowItem { width:auto; white-space:nowrap; overflow:visible; text-overflow:clip; border-bottom:1px solid rgba(0,0,0,0.06); padding:3px 2px; font-size:12px; }
         .dark #flow-wrapper .flowItem { border-color: rgba(255,255,255,0.06); }
-        #flow-wrapper .flowItem .type { opacity:0.6; margin-right:6px; text-transform:uppercase; font-size:10px; }
+        #flow-wrapper .flowItem .type { color: rgba(0,0,0,0.6); margin-right:6px; text-transform:uppercase; font-size:10px; }
+        .dark #flow-wrapper .flowItem .type { color: rgba(255,255,255,0.75); }
+        .contrast #flow-wrapper .flowItem .type { color: #ffffff; }
         #flow-wrapper .flowItem a { color:#2a72b5; text-decoration:none; }
         .dark #flow-wrapper .flowItem a { color:#8fd3ff; }
         #flow-wrapper .flowItem a:hover { text-decoration:underline; }
         /* Graph */
-        #flow-wrapper .flowGraph svg { width:100%; height: calc(100% - 8px); min-height: 400px; }
+        /* Let JS compute explicit pixel size for scrollbars; don't force to container */
+        #flow-wrapper .flowGraph svg { width:auto; height:auto; min-height: 0; }
         #flow-wrapper .flowGraph .lane { fill: rgba(0,0,0,0.04); }
         .dark #flow-wrapper .flowGraph .lane { fill: rgba(255,255,255,0.03); }
         #flow-wrapper .flowGraph .node { fill:#333; stroke:#5aa9e6; stroke-width:1; }
@@ -96,6 +107,16 @@ function ensurePanel() {
         $btn.addClass('active');
         $graph.show();
         renderGraph($graph.find('svg'));
+        try {
+          // Only ensure width when Flow is the sole visible panel
+          const visiblePanels = $('.nav-wrapper').not('.hidden');
+          if (visiblePanels.length === 1 && visiblePanels.is('#flow-wrapper')) {
+            const listW = $labels.outerWidth() || 180;
+            const minGraphWidth = 560; // px budget for a readable graph
+            const desired = listW + minGraphWidth;
+            NavView.ensureWidth(desired);
+          }
+        } catch(_) {}
       }
     } else { // list
       if (isActive) {
@@ -116,6 +137,21 @@ function ensurePanel() {
     renderGraph($graph.find('svg'));
   });
   ro.observe($graph[0]);
+
+  // Zoom the graph with Ctrl/Cmd + mouse wheel
+  $graph.on('wheel', (evt) => {
+    const e = evt.originalEvent || evt;
+    if (!e.ctrlKey && !e.metaKey) return; // require modifier to zoom
+    evt.preventDefault();
+    try {
+      const svg = $graph.find('svg');
+      if (!svg.length) return;
+      const delta = (e.deltaY || 0);
+      const factor = delta < 0 ? 1.1 : 0.9;
+      setZoomScale(getZoomScale() * factor);
+      renderGraph(svg);
+    } catch(_){}
+  });
 
   // start with list visible, graph hidden
   $panel.addClass('show-list');
@@ -294,7 +330,7 @@ function renderGraph($svg) {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
   const nodeW = 140, nodeH = 22, vGap = 14;
-  const baseX = 10, laneSpacing = Math.max(160, Math.floor($svg.width()/5));
+  const baseX = 10, laneSpacing = Math.max(160, Math.floor(($svg.parent().width()||800)/5));
 
   const byId = new Map(data.nodes.map(n => [n.id, n]));
   const incoming = new Map(), outgoing = new Map();
@@ -324,6 +360,11 @@ function renderGraph($svg) {
     });
   });
 
+  // Create a viewport group to allow scaling
+  const viewport = document.createElementNS('http://www.w3.org/2000/svg','g');
+  viewport.setAttribute('id','viewport');
+  svg.appendChild(viewport);
+
   // lanes backgrounds
   for(let li=0; li<=maxLane; li++){
     const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
@@ -332,7 +373,7 @@ function renderGraph($svg) {
     r.setAttribute('width', `${laneSpacing}`);
     r.setAttribute('height', `100%`);
     r.setAttribute('class','lane');
-    svg.appendChild(r);
+    viewport.appendChild(r);
   }
 
   data.nodes.forEach(n => { n.x = baseX + (laneOf.get(n.id)||0)*laneSpacing; });
@@ -345,7 +386,7 @@ function renderGraph($svg) {
     const path = document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('class','edge');
     path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
-    svg.appendChild(path);
+    viewport.appendChild(path);
   });
 
   // nodes
@@ -358,10 +399,35 @@ function renderGraph($svg) {
     rect.setAttribute('class', `node ${n.type==='Unresolved' ? 'unresolved' : ''}`);
     const text = document.createElementNS('http://www.w3.org/2000/svg','text');
     text.setAttribute('x','6'); text.setAttribute('y',`${nodeH/2+4}`); text.setAttribute('class','label'); text.textContent = n.name;
-    g.appendChild(rect); g.appendChild(text); svg.appendChild(g);
+    g.appendChild(rect); g.appendChild(text); viewport.appendChild(g);
     g.addEventListener('click',()=>{ if(n.file){ try{ InkProject.currentProject.showInkFile(n.file); EditorView.gotoLine((n.row||0)+1);}catch(_){}} });
   });
+
+  // Compute content bounds for scrollbars
+  let maxLaneIndex = maxLane;
+  let maxY = 0;
+  data.nodes.forEach(n => { if (n.y + nodeH > maxY) maxY = n.y + nodeH; });
+  const contentWidth = baseX + (maxLaneIndex * laneSpacing) + nodeW + 20;
+  const contentHeight = maxY + 20;
+
+  // Use viewBox for logical coords; size svg element to scaled content so scrollbars appear
+  svg.setAttribute('viewBox', `0 0 ${contentWidth} ${contentHeight}`);
+  const scale = getZoomScale();
+  // Use only viewBox->viewport scaling (via width/height) for zoom; avoid double-scaling group
+  viewport.setAttribute('transform', `scale(1)`);
+  const w = Math.max(1, Math.round(contentWidth * scale));
+  const h = Math.max(1, Math.round(contentHeight * scale));
+  // Set both attributes and style to ensure layout engines compute scrollHeight/Width
+  svg.setAttribute('width', String(w));
+  svg.setAttribute('height', String(h));
+  svg.style.width = w + 'px';
+  svg.style.height = h + 'px';
 }
+
+// Simple module-scoped zoom state/helpers
+let __flowZoomScale = 1;
+function setZoomScale(v){ __flowZoomScale = Math.max(0.5, Math.min(3, v)); }
+function getZoomScale(){ return __flowZoomScale; }
 
 exports.FlowView = {
   _refreshTimer: null,
@@ -394,5 +460,18 @@ exports.FlowView = {
     // Refresh immediately when toggled open/closed
     this.refreshNow();
     NavView.toggle('#flow-wrapper', buttonId);
+    // If graph is the active tab, ensure a reasonable width
+    const $graph = $('#flow-wrapper .flowGraph');
+    if ($graph.is(':visible')) {
+      try {
+        const visiblePanels = $('.nav-wrapper').not('.hidden');
+        if (visiblePanels.length === 1 && visiblePanels.is('#flow-wrapper')) {
+          const listW = $('#flow-wrapper .flowLabels').outerWidth() || 180;
+          const minGraphWidth = 560;
+          const desired = listW + minGraphWidth;
+          NavView.ensureWidth(desired);
+        }
+      } catch(_) {}
+    }
   }
 };

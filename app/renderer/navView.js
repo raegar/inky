@@ -412,6 +412,34 @@ function toggle(id, buttonId){
         if ($thisPanel.hasClass("hasFooter")) 
             $footer.removeClass("hidden");
         $button.addClass("selected");
+
+        // If turning on File or Knot browser, collapse Narrative Flow panel to avoid cramped layout
+        if (id !== "#flow-wrapper") {
+            var $flow = $("#flow-wrapper");
+            if (!$flow.hasClass("hidden")) {
+                $flow.addClass("hidden");
+                // Adjust columns since we just hid Flow
+                columns--;
+                // Ensure Flow toolbar button reflects hidden state
+                $("#toolbar .flow-toggle.button").removeClass("selected");
+            }
+        } else {
+            // If turning on Flow, collapse File and Knot browsers for clarity and width
+            var $file = $("#file-nav-wrapper");
+            var $knot = $("#knot-stitch-wrapper");
+            if (!$file.hasClass("hidden")) {
+                $file.addClass("hidden");
+                columns--;
+                // Hide footer if file panel owns it
+                if ($file.hasClass("hasFooter")) $footer.addClass("hidden");
+                $("#toolbar .nav-toggle.button").removeClass("selected");
+            }
+            if (!$knot.hasClass("hidden")) {
+                $knot.addClass("hidden");
+                columns--;
+                $("#toolbar .knot-toggle.button").removeClass("selected");
+            }
+        }
     } else {
         columns--;
         $thisPanel.addClass("hidden");
@@ -451,6 +479,19 @@ exports.NavView = {
         toggle("#file-nav-wrapper");
     },
     toggle: toggle,
+    ensureWidth: (minPx) => {
+        // Only auto-resize when a single panel is visible, to avoid over-widening
+        var visiblePanels = $(".nav-wrapper").not('.hidden');
+        if (visiblePanels.length !== 1) return;
+        // Ensure it's the flow panel requesting the change
+        if (!visiblePanels.is('#flow-wrapper')) return;
+        var columns = 1;
+        var current = columns * sidebarWidth;
+        if (current + 0.5 < minPx) {
+            sidebarWidth = minPx; // per-column width since columns==1
+            animateSidebar(columns);
+        }
+    },
     showAddIncludeForm: () => setIncludeFormVisible(true)
 }
 
