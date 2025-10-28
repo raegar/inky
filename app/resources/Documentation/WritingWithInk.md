@@ -3504,6 +3504,23 @@ You can safely place an image tag mid-sentence or after punctuation:
 
 	The temple doors creak open. # IMAGE temple.png
 
+Note: Images cannot be tagged to a choice.
+
+Invalid example:
+
+	Once upon a time...
+
+	* There was one choice. # IMAGE choice.png
+
+In the above example the image won’t display because it must either follow a line of text or be the only item on a new line.
+
+Valid example:
+
+	Once upon a time... # IMAGE once.png
+	* There was one choice.
+		So you chose it
+	# IMAGE choice.png
+
 ## 2) Conditional and Sequential Images
 
 `# IMAGE` is just a tag, so you can use it inside logic or branches:
