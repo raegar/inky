@@ -167,6 +167,7 @@ function prepareForNewPlaythrough(sessionId) {
 
     $textBuffer.text("");
     $textBuffer.height(0);
+    try { _ensureImageSizer(); _refreshImageSizingSoon(); } catch(_) {}
 }
 
 
@@ -293,6 +294,8 @@ function addTags(tags)
                     try { $img.remove(); } catch(_) {}
                 });
                 appendAndMaybeFade($img);
+                // Ensure images never exceed the visible player height
+                try { _ensureImageSizer(); _refreshImageSizingSoon(); } catch(_) {}
                 handledSomething = true;
                 break;
             }
@@ -599,6 +602,31 @@ function setInstructionPrefix(prefix) {
 
 function setAnimationEnabled(animEnabled) {
     animationEnabled = animEnabled;
+}
+
+// --- Responsive image sizing -------------------------------------------------
+let _imgSizerRO = null;
+function _refreshImageSizing() {
+    try {
+        const sc = document.querySelector('#player .scrollContainer');
+        if (!sc) return;
+        // Leave a little breathing room for margins/padding
+        const avail = Math.max(1, sc.clientHeight - 24);
+        const imgs = document.querySelectorAll('#player img.storyImage');
+        imgs.forEach(img => { img.style.maxHeight = avail + 'px'; });
+    } catch(_) {}
+}
+function _refreshImageSizingSoon() { setTimeout(_refreshImageSizing, 0); }
+function _ensureImageSizer() {
+    try {
+        const sc = document.querySelector('#player .scrollContainer');
+        if (!sc) return;
+        if (!_imgSizerRO) {
+            _imgSizerRO = new ResizeObserver(() => _refreshImageSizing());
+            _imgSizerRO.observe(sc);
+            window.addEventListener('resize', _refreshImageSizing);
+        }
+    } catch(_) {}
 }
 
 exports.PlayerView = {
