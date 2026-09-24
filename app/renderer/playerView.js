@@ -235,6 +235,14 @@ function setCurrentInkFile(inkFile) {
     currentInkFile = inkFile;
 }
 
+// Media folders (images/, audio/) live next to the main ink file, whichever file is
+// currently being edited. Returns null if the project hasn't been saved yet.
+function _projectDir() {
+    if (!currentInkFile) return null;
+    const mainInk = currentInkFile.isMain() ? currentInkFile : currentInkFile.mainInkFile;
+    return (mainInk && mainInk.projectDir) || null;
+}
+
 function _splitPropertyTagFlexible(tag) {
     // Accept both "KEY value" and "KEY: value"
     if (!tag || typeof tag !== "string") return null;
@@ -282,9 +290,15 @@ function addTags(tags)
         switch (s.property) {
 
             case "IMAGE": {
-                if (!currentInkFile || !s.val) { remaining.push(rawTag); break; }
+                if (!s.val) { remaining.push(rawTag); break; }
+                const projectDir = _projectDir();
+                if (!projectDir) {
+                    appendAndMaybeFade($("<p class='error'></p>").text(`Save your project to see images (${s.val})`));
+                    handledSomething = true;
+                    break;
+                }
 
-                const imgAbsPath = path.join(currentInkFile.projectDir, 'images', s.val);
+                const imgAbsPath = path.join(projectDir, 'images', s.val);
                 const fileUrl = url.pathToFileURL(imgAbsPath).href;
 
                 const $img = $(`<img class='storyImage' src='${fileUrl}' alt='${s.val}'/>`);
@@ -298,7 +312,13 @@ function addTags(tags)
             }
 
             case "AUDIO": {
-                if (!currentInkFile || !s.val) { remaining.push(rawTag); break; }
+                if (!s.val) { remaining.push(rawTag); break; }
+                const projectDir = _projectDir();
+                if (!projectDir) {
+                    appendAndMaybeFade($("<p class='error'></p>").text(`Save your project to hear audio (${s.val})`));
+                    handledSomething = true;
+                    break;
+                }
 
                 /* 1. Resolve filename (adds .wav/.mp3/.ogg if omitted) */
                 const hasExt = /\.[a-z0-9]+$/i.test(s.val.trim());
@@ -308,8 +328,8 @@ function addTags(tags)
 
                 const candidates = [];
                 for (const name of names) {
-                    candidates.push(path.join(currentInkFile.projectDir, 'audio', name));
-                    candidates.push(path.join(currentInkFile.projectDir, 'images', name)); // legacy
+                    candidates.push(path.join(projectDir, 'audio', name));
+                    candidates.push(path.join(projectDir, 'images', name)); // legacy
                 }
 
                 const audioAbsPath = candidates.find(p => fs.existsSync(p));
@@ -351,7 +371,13 @@ function addTags(tags)
 
             /* ----------  AUDIOLOOP (background loop)  ---------- */
             case "AUDIOLOOP": {
-                if (!currentInkFile || !s.val) { remaining.push(rawTag); break; }
+                if (!s.val) { remaining.push(rawTag); break; }
+                const projectDir = _projectDir();
+                if (!projectDir) {
+                    appendAndMaybeFade($("<p class='error'></p>").text(`Save your project to hear audio (${s.val})`));
+                    handledSomething = true;
+                    break;
+                }
 
                 const hasExt = /\.[a-z0-9]+$/i.test(s.val.trim());
                 const names = hasExt
@@ -360,8 +386,8 @@ function addTags(tags)
 
                 const candidates = [];
                 for (const name of names) {
-                    candidates.push(path.join(currentInkFile.projectDir, 'audio', name));
-                    candidates.push(path.join(currentInkFile.projectDir, 'images', name));
+                    candidates.push(path.join(projectDir, 'audio', name));
+                    candidates.push(path.join(projectDir, 'images', name));
                 }
 
                 let loopAbsPath = candidates.find(p => fs.existsSync(p));
