@@ -41,9 +41,16 @@ function updateIssueSummary(issues, issueClickCallback) {
         var errorTypeDiff = issuePriorties[i1.type] - issuePriorties[i2.type];
         if( errorTypeDiff != 0 )
             return errorTypeDiff;
+        else if( i1.filename != i2.filename )
+            return (i1.filename || "").localeCompare(i2.filename || "");
         else
             return i1.lineNumber - i2.lineNumber;
     });
+
+    var showFilenames = new Set(issues.map(issue => issue.filename)).size > 1;
+    var locationOf = (issue) => showFilenames && issue.filename ? `${issue.filename}:${issue.lineNumber}` : `${issue.lineNumber}`;
+    // Monospaced, so all rows' location columns can be the same width
+    var locationWidth = Math.max(3, ...issues.map(issue => locationOf(issue).length)) + 1 + "ch";
 
     issues.forEach((issue) => {
         var errorClass = "";
@@ -59,14 +66,13 @@ function updateIssueSummary(issues, issueClickCallback) {
         }
 
         var $issueRow = $(`<div class="row ${errorClass}">
-                            <div class="col line-no">
-                              ${issue.lineNumber}
-                            </div>
-                            <div class="col issue">
-                              ${issue.message}
-                            </div>
+                            <div class="col line-no"></div>
+                            <div class="col issue"></div>
                             <span class="icon icon-right-open-big"></span>
                           </div>`);
+        // Say which file the issue is in, when they're not all in the same one
+        $issueRow.children(".line-no").text(locationOf(issue)).css("width", locationWidth);
+        $issueRow.children(".issue").text(issue.message);
 
         $issueRow.click((e) => {
             events.selectIssue(issue);

@@ -1,9 +1,7 @@
 const $ = window.jQuery = require('./jquery-2.2.3.min.js');
 const i18n = require('./i18n.js');
-const path = require("path");
-const fs = require("fs");
-const url = require('url');
 const InkMedia = require('../export-for-web-template/inkMedia.js');
+const { ProjectMedia } = require('./projectMedia.js');
 
 var events = {};
 var lastFadeTime = 0;
@@ -137,7 +135,7 @@ function prepareForNewPlaythrough(sessionId) {
     }
     _freshStartPending = false;
     _replayLoop = null;
-    _mediaDirCache = {};
+    ProjectMedia.clearCache();
 
     $textBuffer = $("#player .hiddenBuffer .innerText");
     $textBuffer.data("sessionId", sessionId);
@@ -230,67 +228,6 @@ function setCurrentInkFile(inkFile) {
     currentInkFile = inkFile;
 }
 
-// Media folders (images/, audio/) live next to the main ink file, whichever file is
-// currently being edited. Returns null if the project hasn't been saved yet.
-function _projectDir() {
-    if (!currentInkFile) return null;
-    const mainInk = currentInkFile.isMain() ? currentInkFile : currentInkFile.mainInkFile;
-    return (mainInk && mainInk.projectDir) || null;
-}
-
-// Directory listings, cached for the current playthrough so that replaying a long
-// story doesn't hit the disk for every tag. Cleared on each new playthrough.
-let _mediaDirCache = {};
-
-function _listDir(dir) {
-    if (!(dir in _mediaDirCache)) {
-        try { _mediaDirCache[dir] = fs.readdirSync(dir); } catch(_) { _mediaDirCache[dir] = null; }
-    }
-    return _mediaDirCache[dir];
-}
-
-// Looks for relPath under root, matching each folder/file name case-insensitively.
-// Returns the path with its real capitalisation (and whether it matched exactly), or null.
-function _findFile(root, relPath) {
-    let dir = root;
-    const actual = [];
-    for (const part of relPath.split('/')) {
-        const entries = _listDir(dir);
-        if (!entries) return null;
-        const found = entries.includes(part) ? part : entries.find(e => e.toLowerCase() === part.toLowerCase());
-        if (!found) return null;
-        actual.push(found);
-        dir = path.join(dir, found);
-    }
-    return { path: actual.join('/'), exact: actual.join('/') === relPath };
-}
-
-// Finds the file for a media tag. Returns { url } or { error } with a message for the writer.
-function _resolveMedia(property, val) {
-    const kind = property === 'IMAGE' || property === 'BACKGROUND' ? 'Image' : 'Audio';
-    const projectDir = _projectDir();
-    if (!projectDir) {
-        return { error: `Save your project to use images and audio (${val})` };
-    }
-
-    const exact = InkMedia.resolve(property, val, p => { const f = _findFile(projectDir, p); return f && f.exact; });
-    if (exact) {
-        return { url: url.pathToFileURL(path.join(projectDir, exact)).href };
-    }
-
-    // Windows and macOS ignore capitalisation but web hosts don't, so a game that works
-    // here would break once exported. Treat it as missing and say what's wrong.
-    const loose = InkMedia.resolve(property, val, p => !!_findFile(projectDir, p));
-    if (loose) {
-        // Suggest the name as they'd write it in the tag (i.e. without the folder, if they left it off)
-        const actual = _findFile(projectDir, loose).path;
-        const suggestion = actual.split('/').slice(-val.split('/').length).join('/');
-        return { error: `${kind} not found: ${val} - did you mean ${suggestion}? Capital letters matter once your game is on the web` };
-    }
-
-    return { error: `${kind} not found: ${val} (put it in the ${InkMedia.folderFor(property)}/ folder)` };
-}
-
 function addTags(tags)
 {
     if (!tags || !Array.isArray(tags) || tags.length === 0) return;
@@ -322,7 +259,7 @@ function addTags(tags)
             continue;
         }
 
-        const media = _resolveMedia(tag.property, tag.val);
+        const media = ProjectMedia.resolve(ProjectMedia.projectDirFor(currentInkFile), tag.property, tag.val);
         if (media.error) {
             appendError(media.error);
             continue;

@@ -3531,6 +3531,12 @@ Choose Media → Images → Insert Image…
 - The tag `# IMAGE filename.ext` is inserted at the cursor. If there's text after the cursor, it moves onto the next line so it doesn't become part of the tag.
 - If you haven't saved your project yet, Inky asks you to save it first, because the `images/` folder goes next to your main `.ink` file.
 
+You can also drag image files from your desktop straight onto the editor: they're copied into `images/` and the tags are added where you drop them.
+
+When typing a tag yourself, Inky suggests the files in your `images/` folder as soon as you've typed `# IMAGE `, so you don't have to remember exact file names.
+
+If a tag refers to a file that isn't there (or the capital letters don't match), a warning appears in the issue list at the top of the window and next to the line, without needing to play the story to that point.
+
 ## 4) Supported Formats and Tips
 
 Supports `.png`, `.jpg`/`.jpeg`, `.gif`, `.svg`. Animated GIFs loop; SVGs scale cleanly at any size.
@@ -3606,6 +3612,8 @@ Media → Audio → Insert Audio Loop… or Insert Audio Effect…
 - Duplicate names prompt: Use Existing / Add as New / Cancel.
 - Corresponding tag is inserted automatically.
 - If you haven't saved your project yet, Inky asks you to save it first.
+- You can also drag audio files onto the editor. Inky asks whether each one is a sound effect or a background loop, then adds the tag where you dropped it.
+- Typing `# AUDIO ` or `# AUDIOLOOP ` suggests the files in your `audio/` folder.
 
 ## 4) Player Controls and Mute
 
@@ -3635,7 +3643,7 @@ While you're writing, Inky replays your choices every time you edit the story, t
 
 ## 7) Troubleshooting
 
-- Issue: “Audio not found” → Wrong path or extension → Check the `audio/` folder and the spelling.
+- Issue: “Audio not found” (in the player, or as a warning in the issue list) → Wrong path or extension → Check the `audio/` folder and the spelling.
 - “did you mean …? Capital letters matter” → The tag's capitals don't match the file name → Change the tag to match exactly.
 - A sound effect didn't play after an edit → Effects aren't replayed while you edit → Press Restart, or make the choice again.
 - In an exported web game, the first loop doesn't start until you click → Browsers block sound until the player interacts with the page → This is normal; it starts on the first click or key press.

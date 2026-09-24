@@ -19,6 +19,10 @@
     var IMAGE_FOLDER = 'images';
     var AUDIO_FOLDER = 'audio';
 
+    // File types Inky offers when adding media
+    var IMAGE_FILE_TYPES = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
+    var AUDIO_FILE_TYPES = ['mp3', 'ogg', 'wav', 'm4a', 'aac', 'flac', 'aiff', 'aif', 'opus', 'webm'];
+
     // Extensions to try, in order, when an audio tag leaves the extension off
     var AUDIO_EXTENSIONS = {
         AUDIO:     ['.wav', '.mp3', '.ogg'],
@@ -210,6 +214,8 @@
     return {
         IMAGE_FOLDER: IMAGE_FOLDER,
         AUDIO_FOLDER: AUDIO_FOLDER,
+        IMAGE_FILE_TYPES: IMAGE_FILE_TYPES,
+        AUDIO_FILE_TYPES: AUDIO_FILE_TYPES,
         parseTag: parseTag,
         isMediaProperty: isMediaProperty,
         candidatePaths: candidatePaths,
