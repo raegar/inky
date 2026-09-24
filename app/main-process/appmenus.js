@@ -180,6 +180,10 @@ function refresh() {
                     click: callbacks.new
                 },
                 {
+                    label: i18n._('New Illustrated Story...'),
+                    click: callbacks.newIllustratedStory
+                },
+                {
                     label: i18n._('New Included Ink File'),
                     accelerator: 'CmdOrCtrl+Alt+N',
                     click: callbacks.newInclude
