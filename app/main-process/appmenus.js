@@ -180,6 +180,10 @@ function refresh() {
                     click: callbacks.new
                 },
                 {
+                    label: i18n._('New Illustrated Story...'),
+                    click: callbacks.newIllustratedStory
+                },
+                {
                     label: i18n._('New Included Ink File'),
                     accelerator: 'CmdOrCtrl+Alt+N',
                     click: callbacks.newInclude
@@ -408,6 +412,11 @@ function refresh() {
                     label: i18n._('Narrative Flow...'),
                     enabled: callbacks.isFocusedWindow,
                     click: callbacks.showFlow
+                },
+                {
+                    label: i18n._('Images and Audio...'),
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.showAssets
                 },
                 {
                     label: i18n._('Tags visible'),

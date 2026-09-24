@@ -168,3 +168,11 @@
 .window.contrast .sidebar .nav-wrapper::-webkit-scrollbar-thumb {
     background: #323232;
 }
+.window.contrast #assets-wrapper .assetsSectionTitle,
+.window.contrast #assets-wrapper .assetsName,
+.window.contrast #assets-wrapper .assetsAddButton,
+.window.contrast #assets-wrapper .assetsEmpty { color: #fff; }
+.window.contrast #assets-wrapper .assetsAddButton { border-color: #fff; }
+.window.contrast #assets-wrapper .assetsFolderLink,
+.window.contrast #assets-wrapper .assetsPlay { color: #8fd3ff; }
+.window.contrast #assets-wrapper .assetsMissing { color: #ff8a70; }

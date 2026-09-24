@@ -3481,6 +3481,8 @@ This version also includes a special tag that inserts an image immediately after
 
 	An illustrated line of game-text. # IMAGE example.png
 
+**The quickest way to start** is File → New Illustrated Story…. Give your story a name, and Inky makes a folder for it with `images/` and `audio/` folders and a short example story that uses a picture, a background loop and a sound effect. Play it, then change it into your own.
+
 ### How it works
 - Save your image in a web-safe format (for example, `.png` or `.jpg`).
 - Place it in an `images/` folder alongside your `.ink` file.
@@ -3533,6 +3535,8 @@ Choose Media → Images → Insert Image…
 - If you haven't saved your project yet, Inky asks you to save it first, because the `images/` folder goes next to your main `.ink` file.
 
 You can also drag image files from your desktop straight onto the editor: they're copied into `images/` and the tags are added where you drop them.
+
+**The Images and Audio panel** (the picture button in the toolbar, or View → Images and Audio…) shows everything in your `images/` and `audio/` folders. Click a picture to add it at the cursor, or drag it to where you want it in your story. For sounds, press ▶ to listen, then choose Effect (plays once) or Loop (keeps playing). Files that no tag uses yet are marked *unused*, and tags whose file can't be found are listed under *Missing*: click one to go to that line.
 
 When typing a tag yourself, Inky suggests the files in your `images/` folder as soon as you've typed `# IMAGE `, so you don't have to remember exact file names.
 

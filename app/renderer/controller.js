@@ -22,6 +22,7 @@ const ToolbarView = require("./toolbarView.js").ToolbarView;
 const NavView = require("./navView.js").NavView;
 const FlowView = require("./flowView.js").FlowView;
 const PlayPath = require("./playPath.js").PlayPath;
+const AssetsView = require("./assetsView.js").AssetsView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
 const LiveCompiler = require("./liveCompiler.js").LiveCompiler;
 const InkProject = require("./inkProject.js").InkProject;
@@ -101,6 +102,7 @@ LiveCompiler.setEvents({
         EditorView.clearErrors();
         ToolbarView.clearIssueSummary();
         try { FlowView.requestRefresh(); } catch(_) {}
+        AssetsView.requestRefresh();
     },
     selectIssue: gotoIssue,
     textAdded: (text) => {
@@ -299,6 +301,7 @@ ExpressionWatchView.setEvents({
 ToolbarView.setEvents({
     toggleSidebar: (id, buttonId) => { NavView.toggle(id, buttonId); },
     toggleFlow: () => { try { require('./flowView.js').FlowView.toggle('.flow-toggle.button'); } catch(_) {} },
+    toggleAssets: () => AssetsView.toggle('.assets-toggle.button'),
     navigateBack: () => NavHistory.back(),
     navigateForward: () => NavHistory.forward(),
     selectIssue: gotoIssue,
@@ -374,6 +377,19 @@ ipc.on("set-audio-controls-visible", (event, visible) => {
 ipc.on("set-audio-muted", (event, muted) => {
     PlayerView.setAudioMuted(muted);
 });
+
+AssetsView.setEvents({
+    gotoLine: (inkFile, row) => {
+        InkProject.currentProject.showInkFile(inkFile);
+        EditorView.gotoLine(row + 1);
+        NavHistory.addStep();
+    }
+});
+
+ipc.on('toggle-assets-view', () => AssetsView.toggle('.assets-toggle.button'));
+
+// Files may have been added to images/ or audio/ in another app
+window.addEventListener('focus', () => AssetsView.requestRefresh());
 
 // Narrative Flow panel toggle
 ipc.on('toggle-flow-view', () => {
@@ -456,6 +472,22 @@ document.addEventListener("dragover", (e) => {
     e.stopPropagation();
     e.dataTransfer.dropEffect = "copy";
 }, true);
+// Tags dragged from the Assets panel: insert them where they're dropped
+const isTagDrag = (e) => e.dataTransfer && Array.from(e.dataTransfer.types).includes(AssetsView.TAG_DRAG_TYPE);
+document.addEventListener("dragover", (e) => {
+    if( !isTagDrag(e) ) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+}, true);
+document.addEventListener("drop", (e) => {
+    if( !isTagDrag(e) ) return;
+    e.preventDefault();
+    e.stopPropagation();
+    EditorView.moveCursorToScreenPoint(e.clientX, e.clientY);
+    EditorView.insertTag(e.dataTransfer.getData(AssetsView.TAG_DRAG_TYPE));
+}, true);
+
 document.addEventListener("drop", (e) => {
     if( !isFileDrag(e) ) return;
     e.preventDefault();
