@@ -477,7 +477,7 @@ app.on('ready', function () {
         for (let i = 1; i < process.argv.length; i++) {
             var arg = process.argv[i].toLowerCase();
             if (arg.endsWith(".ink")) {
-                pendingPathToOpen = process.argv[1];
+                pendingPathToOpen = process.argv[i];
                 break;
             }
         }
