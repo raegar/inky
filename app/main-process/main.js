@@ -159,7 +159,8 @@ function fileTypeOf(filePath) {
     return path.extname(filePath).slice(1).toLowerCase();
 }
 
-const ILLUSTRATED_STORY_TEMPLATE = path.join(__dirname, "..", "resources", "templates", "illustrated-story");
+// Starter projects: each folder has a story.ink, plus its images/ and audio/
+const TEMPLATES_DIR = path.join(__dirname, "..", "resources", "templates");
 
 // Copies a folder from inside the app. Reads and writes each file rather than using
 // fs.cpSync, since packaged builds keep the app's files in an asar archive.
@@ -173,16 +174,16 @@ function copyAppFolder(source, destination) {
     }
 }
 
-// File > New Illustrated Story: makes a project folder with images/ and audio/ folders
-// and a short example story that uses them, then opens it. Starting from a saved
-// project means media can be added straight away.
-async function newIllustratedStory() {
+// Makes a new project folder from one of the templates, then opens it. The template's
+// story.ink becomes "<name>/<name>.ink", with ##TITLE## replaced by the name. Starting
+// from a saved project means media can be added straight away.
+async function newProjectFromTemplate(templateName, dialogTitle, defaultName) {
     const result = await dialog.showSaveDialog(BrowserWindow.getFocusedWindow(), {
-        title: i18n._('New Illustrated Story'),
+        title: dialogTitle,
         message: i18n._('Name your story. Inky will make a folder with this name for it.'),
         buttonLabel: i18n._('Create'),
         nameFieldLabel: i18n._('Story name:'),
-        defaultPath: path.join(app.getPath('documents'), i18n._('My Story')),
+        defaultPath: path.join(app.getPath('documents'), defaultName),
         properties: ['createDirectory']
     });
     if (result.canceled || !result.filePath) return;
@@ -201,7 +202,7 @@ async function newIllustratedStory() {
 
     const mainInkPath = path.join(folder, `${name}.ink`);
     try {
-        copyAppFolder(ILLUSTRATED_STORY_TEMPLATE, folder);
+        copyAppFolder(path.join(TEMPLATES_DIR, templateName), folder);
         const templateInk = path.join(folder, "story.ink");
         const ink = fs.readFileSync(templateInk, "utf8").replace(/##TITLE##/g, name.replace(/#/g, ''));
         fs.unlinkSync(templateInk);
@@ -216,6 +217,12 @@ async function newIllustratedStory() {
     }
 
     ProjectWindow.open(mainInkPath);
+}
+
+// File > New Illustrated Story: a project with images/ and audio/ folders and a short
+// example story that uses them
+function newIllustratedStory() {
+    return newProjectFromTemplate('illustrated-story', i18n._('New Illustrated Story'), i18n._('My Story'));
 }
 
 // Files dragged onto a project window from the desktop: images and audio are copied into
@@ -383,6 +390,7 @@ app.on('ready', function () {
             ProjectWindow.createEmpty();
         },
         newIllustratedStory: newIllustratedStory,
+        newProjectFromTemplate: newProjectFromTemplate,
         newInclude: () => {
             var win = ProjectWindow.focused();
             if (win) win.newInclude();

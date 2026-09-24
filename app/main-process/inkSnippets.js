@@ -308,6 +308,12 @@ exports.snippets = [
             {
                 name: i18n._('The Intercept'),
                 ink: loadLongerSnippet("theintercept.ink")
+            },
+            {
+                // Uses images and audio, so it's saved as a new project (see resources/templates)
+                name: i18n._('The Forest (Inky Media)'),
+                template: "the-forest",
+                projectName: "The Forest"
             }
         ]
     }

@@ -78,6 +78,12 @@ function refresh() {
                 return {
                     type: 'separator'
                 };
+            } else if( snippet.template ) {
+                // A whole project, with its images and audio: saved as a new project
+                return {
+                    label: i18n._(snippet.name) + '...',
+                    click: () => callbacks.newProjectFromTemplate(snippet.template, i18n._(snippet.name), snippet.projectName)
+                }
             } else {
                 return {
                     label: i18n._(snippet.name),
