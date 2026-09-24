@@ -7,7 +7,7 @@ const {AppMenus} = require('./appmenus.js');
 const {onForceQuit} = require('./forceQuitDetect');
 const {Inklecate} = require("./inklecate.js");
 const { fstat } = require('original-fs');
-const {fs} = require("fs");
+const fs = require("fs");
 const path = require("path");
 const InkMedia = require("../export-for-web-template/inkMedia.js");
 
@@ -134,6 +134,65 @@ function fileTypeOf(filePath) {
     return path.extname(filePath).slice(1).toLowerCase();
 }
 
+const ILLUSTRATED_STORY_TEMPLATE = path.join(__dirname, "..", "resources", "templates", "illustrated-story");
+
+// Copies a folder from inside the app. Reads and writes each file rather than using
+// fs.cpSync, since packaged builds keep the app's files in an asar archive.
+function copyAppFolder(source, destination) {
+    fs.mkdirSync(destination, { recursive: true });
+    for (const name of fs.readdirSync(source)) {
+        const from = path.join(source, name);
+        const to = path.join(destination, name);
+        if (fs.statSync(from).isDirectory()) copyAppFolder(from, to);
+        else fs.writeFileSync(to, fs.readFileSync(from));
+    }
+}
+
+// File > New Illustrated Story: makes a project folder with images/ and audio/ folders
+// and a short example story that uses them, then opens it. Starting from a saved
+// project means media can be added straight away.
+async function newIllustratedStory() {
+    const result = await dialog.showSaveDialog(BrowserWindow.getFocusedWindow(), {
+        title: i18n._('New Illustrated Story'),
+        message: i18n._('Name your story. Inky will make a folder with this name for it.'),
+        buttonLabel: i18n._('Create'),
+        nameFieldLabel: i18n._('Story name:'),
+        defaultPath: path.join(app.getPath('documents'), i18n._('My Story')),
+        properties: ['createDirectory']
+    });
+    if (result.canceled || !result.filePath) return;
+
+    // The name becomes the folder and the main ink file: "My Story/My Story.ink"
+    const folder = result.filePath.replace(/\.ink$/i, '');
+    const name = path.basename(folder);
+    if (fs.existsSync(folder) && fs.readdirSync(folder).length > 0) {
+        dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
+            type: 'warning',
+            message: i18n._("There's already a folder with that name"),
+            detail: folder + "\n\n" + i18n._('Please choose a different name, so nothing in it gets overwritten.')
+        });
+        return;
+    }
+
+    const mainInkPath = path.join(folder, `${name}.ink`);
+    try {
+        copyAppFolder(ILLUSTRATED_STORY_TEMPLATE, folder);
+        const templateInk = path.join(folder, "story.ink");
+        const ink = fs.readFileSync(templateInk, "utf8").replace(/##TITLE##/g, name.replace(/#/g, ''));
+        fs.unlinkSync(templateInk);
+        fs.writeFileSync(mainInkPath, ink, "utf8");
+    } catch (err) {
+        dialog.showMessageBox(BrowserWindow.getFocusedWindow(), {
+            type: 'error',
+            message: i18n._('Could not create the story'),
+            detail: err.message
+        });
+        return;
+    }
+
+    ProjectWindow.open(mainInkPath);
+}
+
 // Files dragged onto a project window from the desktop: images and audio are copied into
 // the project with their tags inserted at the drop point, and ink files are opened.
 ipcMain.on("import-dropped-files", async (event, filePaths) => {
@@ -199,8 +258,6 @@ ipcMain.handle("try-close", async (event) =>{
 
 // Helper: copy selected asset into project folder with conflict prompt
 async function importAssetWithPrompt(win, sourcePath, destDir, kindLabel) {
-    const path = require('path');
-    const fs = require('fs');
     fs.mkdirSync(destDir, { recursive: true });
 
     const basename = path.basename(sourcePath);
@@ -300,6 +357,7 @@ app.on('ready', function () {
         new: () => {
             ProjectWindow.createEmpty();
         },
+        newIllustratedStory: newIllustratedStory,
         newInclude: () => {
             var win = ProjectWindow.focused();
             if (win) win.newInclude();
