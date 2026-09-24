@@ -169,3 +169,12 @@
 .window.dark .sidebar .nav-wrapper::-webkit-scrollbar-thumb {
     background: #323232;
 }
+.window.dark #assets-wrapper .assetsSectionTitle { color: #999; }
+.window.dark #assets-wrapper .assetsName,
+.window.dark #assets-wrapper .assetsAddButton { color: #ccc; }
+.window.dark #assets-wrapper .assetsAddButton { border-color: rgba(255,255,255,0.18); }
+.window.dark #assets-wrapper .assetsThumb { background: rgba(255,255,255,0.06); }
+.window.dark #assets-wrapper .assetsAudio { border-color: rgba(255,255,255,0.06); }
+.window.dark #assets-wrapper .assetsFolderLink,
+.window.dark #assets-wrapper .assetsPlay { color: #8fd3ff; }
+.window.dark #assets-wrapper .assetsMissing { color: #ff8a70; }

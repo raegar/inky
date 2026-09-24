@@ -433,6 +433,12 @@ function toggle(id, buttonId){
             // If turning on Flow, collapse File and Knot browsers for clarity and width
             var $file = $("#file-nav-wrapper");
             var $knot = $("#knot-stitch-wrapper");
+            var $assets = $("#assets-wrapper");
+            if ($assets.length && !$assets.hasClass("hidden")) {
+                $assets.addClass("hidden");
+                columns--;
+                $("#toolbar .assets-toggle.button").removeClass("selected");
+            }
             if (!$file.hasClass("hidden")) {
                 $file.addClass("hidden");
                 columns--;

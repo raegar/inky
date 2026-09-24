@@ -46,7 +46,8 @@ function findFile(root, relPath) {
     return { path: actual.join('/'), exact: actual.join('/') === relPath };
 }
 
-// Finds the file for a media tag. Returns { url } or { error } with a message for the writer.
+// Finds the file for a media tag. Returns { url, path } (path relative to the project
+// folder), or { error } with a message for the writer.
 function resolve(projectDir, property, val) {
     const kind = property === 'IMAGE' || property === 'BACKGROUND' ? 'Image' : 'Audio';
     if (!projectDir) {
@@ -55,7 +56,7 @@ function resolve(projectDir, property, val) {
 
     const exact = InkMedia.resolve(property, val, p => { const f = findFile(projectDir, p); return f && f.exact; });
     if (exact) {
-        return { url: url.pathToFileURL(path.join(projectDir, exact)).href };
+        return { url: url.pathToFileURL(path.join(projectDir, exact)).href, path: exact };
     }
 
     // Windows and macOS ignore capitalisation but web hosts don't, so a game that works
@@ -92,7 +93,8 @@ function listFiles(projectDir, property) {
 }
 
 // The media tags in a line's tag text, e.g. "# IMAGE: a.png # AUDIO b" (as the editor
-// tokenises it), skipping any whose file name is worked out as the story runs.
+// tokenises it). A tag whose file name is worked out as the story runs, like
+// "# IMAGE panel{n}.png", is marked dynamic, with a pattern for the files it could mean.
 function mediaTagsIn(tagText) {
     const tags = [];
     for (const part of tagText.split('#')) {
@@ -101,17 +103,21 @@ function mediaTagsIn(tagText) {
         if (text.indexOf('}') !== -1 && text.indexOf('{') === -1) text = text.slice(0, text.indexOf('}'));
         const tag = InkMedia.parseTag(text);
         if (!tag || !InkMedia.isMediaProperty(tag.property) || tag.property === 'BACKGROUND' || !tag.val) continue;
-        if (tag.val.indexOf('{') !== -1) continue;
+        if (tag.val.indexOf('{') !== -1) {
+            const pattern = tag.val.split(/\{[^}]*\}?/).map(s => s.replace(/[.*+?^$()|[\]\\]/g, '\\$&')).join('.*');
+            tag.dynamic = new RegExp('^' + pattern + '$', 'i');
+        }
         tags.push(tag);
     }
     return tags;
 }
 
-// Checks every media tag in the project, returning an issue for each missing file in the
-// same form as the compiler's warnings, so they show in the issue list and the editor.
-function findIssues(project) {
-    const issues = [];
-    if (!project) return issues;
+// Every media tag in the project: { property, val, inkFile, row, path, error, dynamic }.
+// path is the file it refers to (relative to the project folder, e.g. "images/a.png"),
+// or null if it's missing, with error saying why. Dynamic tags aren't resolved.
+function scanTags(project) {
+    const tags = [];
+    if (!project) return tags;
     clearCache();
     const projectDir = projectDirFor(project.mainInk);
 
@@ -121,20 +127,40 @@ function findIssues(project) {
             for (const token of session.getTokens(row)) {
                 if (token.type !== 'tag') continue;
                 for (const tag of mediaTagsIn(token.value)) {
-                    const result = resolve(projectDir, tag.property, tag.val);
-                    if (result.error) {
-                        issues.push({
-                            type: "WARNING",
-                            filename: inkFile.relativePath(),
-                            lineNumber: row + 1,
-                            message: result.error
-                        });
+                    tag.inkFile = inkFile;
+                    tag.row = row;
+                    tag.path = null;
+                    if (!tag.dynamic) {
+                        const result = resolve(projectDir, tag.property, tag.val);
+                        tag.path = result.path || null;
+                        tag.error = result.error;
                     }
+                    tags.push(tag);
                 }
             }
         }
     }
-    return issues;
+    return tags;
+}
+
+// Whether any of the scanned tags uses the file at relPath (relative to the project
+// folder), including tags whose file name is worked out as the story runs.
+function isFileUsed(tags, relPath) {
+    const name = relPath.split('/').pop();
+    return tags.some(tag => tag.path === relPath || (tag.dynamic && tag.dynamic.test(name)));
+}
+
+// Returns an issue for each media tag whose file is missing, in the same form as the
+// compiler's warnings, so they show in the issue list and the editor.
+function findIssues(project) {
+    return scanTags(project)
+        .filter(tag => tag.error)
+        .map(tag => ({
+            type: "WARNING",
+            filename: tag.inkFile.relativePath(),
+            lineNumber: tag.row + 1,
+            message: tag.error
+        }));
 }
 
 exports.ProjectMedia = {
@@ -143,5 +169,7 @@ exports.ProjectMedia = {
     resolve,
     listFiles,
     mediaTagsIn,
+    scanTags,
+    isFileUsed,
     findIssues
 };
