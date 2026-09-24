@@ -193,6 +193,12 @@ exports.EditorView = {
         editor.focus();
     },
     gotoLine: (row, col) => { editor.gotoLine(row, col); editor.focus(); },
+    // The text position at a point on screen, or null if it isn't over the editor
+    positionAtScreenPoint: (x, y) => {
+        const rect = editor.container.getBoundingClientRect();
+        if( x < rect.left || x > rect.right || y < rect.top || y > rect.bottom ) return null;
+        return editor.renderer.screenToTextCoordinates(x, y);
+    },
     // Moves the cursor to a point on screen (e.g. where files were dropped), if it's
     // over the editor. Returns whether it was.
     moveCursorToScreenPoint: (x, y) => {

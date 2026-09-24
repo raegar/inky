@@ -176,3 +176,9 @@
 .window.contrast #assets-wrapper .assetsFolderLink,
 .window.contrast #assets-wrapper .assetsPlay { color: #8fd3ff; }
 .window.contrast #assets-wrapper .assetsMissing { color: #ff8a70; }
+
+.window.contrast #variables-wrapper .variableName,
+.window.contrast #variables-wrapper .variablesIntro,
+.window.contrast #variables-wrapper .variablesEmpty { color: #fff; }
+.window.contrast #variables-wrapper .variableValue input[type=text] { border-color: #fff; }
+.window.contrast #variables-wrapper tr.overridden .variableName::before { color: #8fd3ff; }

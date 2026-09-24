@@ -14,6 +14,10 @@ var exportCompleteCallback = null;
 var lastEditorChange = null;
 var reloadPending = false;
 
+// Everything the player has done this playthrough, replayed after each recompile to get
+// back to the same point. Each entry is a choice number, or a command:
+//   { type: 'set', name, value }   - a variable changed in the Variables panel
+//   { type: 'divert', target }     - a jump to a knot ("Play from here")
 var choiceSequence = [];
 var currentTurnIdx = -1;
 var replaying = false;
@@ -161,6 +165,42 @@ function stopInklecateSession(idToStop) {
     updateCompilerIsBusy(false);
 }
 
+// Sends a command entry to the running story
+function sendCommand(entry, sessionId) {
+    if( entry.type == 'set' )
+        ipc.send("play-set-variable", entry.name, entry.value, sessionId);
+    else if( entry.type == 'divert' )
+        ipc.send("play-divert", entry.target, sessionId);
+    if( events.commandSent ) events.commandSent(entry);
+}
+
+// Sets a variable in the running story. valueExpression is ink, e.g. 5, true, "text"
+function setVariable(name, valueExpression) {
+    var entry = { type: 'set', name: name, value: valueExpression };
+    choiceSequence.push(entry);
+    currentTurnIdx++;
+    sendCommand(entry, currentPlaySessionId);
+}
+
+// Restarts the story and jumps straight to a knot or stitch. Variables changed in the
+// Variables panel stay changed, so you can set things up and then try a scene.
+function playFrom(target) {
+    var variablesSet = choiceSequence.filter(e => typeof e == 'object' && e.type == 'set');
+    choiceSequence = variablesSet.concat([{ type: 'divert', target: target }]);
+    currentTurnIdx = -1;
+    reloadInklecateSession();
+}
+
+// Whether the turn that's being generated is the one the player is at now, i.e. nothing
+// still to be replayed would change the choices on offer (setting a variable doesn't)
+function isLatestTurn() {
+    for( var i = Math.max(0, currentTurnIdx); i < choiceSequence.length; i++ ) {
+        var entry = choiceSequence[i];
+        if( typeof entry == 'number' || entry.type == 'divert' ) return false;
+    }
+    return true;
+}
+
 function choose(choice) {
     ipc.send("play-continue-with-choice-number", choice.number, choice.sourceSessionId);
     choiceSequence.push(choice.number);
@@ -286,10 +326,7 @@ ipc.on("play-generated-choice", (event, choice, fromSessionId) => {
     // May have finished compiling
     updateCompilerIsBusy(false);
 
-    // If there's one choice, that means there are two turns/chunks
-    var turnCount = choiceSequence.length+1;
-    var isLatestTurn = currentTurnIdx >= turnCount-1;
-    events.choiceAdded(choice, isLatestTurn);
+    events.choiceAdded(choice, isLatestTurn());
 });
 
 ipc.on("play-requires-input", (event, fromSessionId) => {
@@ -308,9 +345,12 @@ ipc.on("play-requires-input", (event, fromSessionId) => {
 
     events.playerPrompt(replaying, () => {
         if( replaying ) {
-            var replayChoiceNumber = choiceSequence[currentTurnIdx];
+            var replayEntry = choiceSequence[currentTurnIdx];
             currentTurnIdx++;
-            ipc.send("play-continue-with-choice-number", replayChoiceNumber, fromSessionId);
+            if( typeof replayEntry == 'number' )
+                ipc.send("play-continue-with-choice-number", replayEntry, fromSessionId);
+            else
+                sendCommand(replayEntry, fromSessionId);
         } 
 
         if( justCompletedReplay ) 
@@ -426,6 +466,15 @@ exports.LiveCompiler = {
     getIssuesForFilename: (filename) => _.filter(allIssues(), i => i.filename == filename),
     setMediaIssueChecker: (checker) => { mediaIssueChecker = checker; },
     choose: choose,
+    setVariable: setVariable,
+    playFrom: playFrom,
+    isReplaying: () => replaying,
+    // Variables set in the Variables panel this playthrough, name -> value
+    getVariableOverrides: () => {
+        var overrides = {};
+        choiceSequence.forEach(e => { if( typeof e == 'object' && e.type == 'set' ) overrides[e.name] = e.value; });
+        return overrides;
+    },
     rewind: rewind,
     stepBack: stepBack,
     getLocationInSource: getLocationInSource,

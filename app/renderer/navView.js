@@ -433,12 +433,15 @@ function toggle(id, buttonId){
             // If turning on Flow, collapse File and Knot browsers for clarity and width
             var $file = $("#file-nav-wrapper");
             var $knot = $("#knot-stitch-wrapper");
-            var $assets = $("#assets-wrapper");
-            if ($assets.length && !$assets.hasClass("hidden")) {
-                $assets.addClass("hidden");
-                columns--;
-                $("#toolbar .assets-toggle.button").removeClass("selected");
-            }
+            // ... and the other side panels
+            [["#assets-wrapper", ".assets-toggle"], ["#variables-wrapper", ".variables-toggle"]].forEach(([panelId, buttonClass]) => {
+                var $other = $(panelId);
+                if ($other.length && !$other.hasClass("hidden")) {
+                    $other.addClass("hidden");
+                    columns--;
+                    $("#toolbar " + buttonClass + ".button").removeClass("selected");
+                }
+            });
             if (!$file.hasClass("hidden")) {
                 $file.addClass("hidden");
                 columns--;

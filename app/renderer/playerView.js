@@ -340,6 +340,25 @@ function addChoice(choice, callback)
     });
 }
 
+// A note in the story for something done from outside it: a jump to a knot ("Play from
+// here") or a variable set in the Variables panel
+function addCommandNote(entry)
+{
+    var text;
+    if( entry.type == 'divert' ) {
+        // Like choosing: any choices on offer no longer apply
+        $textBuffer.find(".choice").remove();
+        addHorizontalDivider();
+        text = `↪ ${i18n._("Jumped to")} ${entry.target}`;
+    } else {
+        text = `✎ ${entry.name} ${i18n._("set to")} ${entry.value}`;
+    }
+    var $note = $("<p class='commandNote'></p>").text(text);
+    $textBuffer.append($note);
+    if( animationEnabled && shouldAnimate() )
+        fadeIn($note);
+}
+
 function addTerminatingMessage(message, cssClass)
 {
     var $message = $(`<p class='${cssClass}'>${message}</p>`);
@@ -422,6 +441,7 @@ exports.PlayerView = {
     addTags: addTags,
     addChoice: addChoice,
     addTerminatingMessage: addTerminatingMessage,
+    addCommandNote: addCommandNote,
     addLongMessage: addLongMessage,
     addHorizontalDivider: addHorizontalDivider,
     addLineError: addLineError,
