@@ -461,6 +461,9 @@ function toggle(id, buttonId){
     }
 
    
+    // The "Add new include" footer belongs to the file browser
+    $footer.toggleClass("hidden", $("#file-nav-wrapper").hasClass("hidden"));
+
     if (columns == 0) {
         hideSidebar();
     } else { 
