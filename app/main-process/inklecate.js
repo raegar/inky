@@ -98,7 +98,9 @@ function compile(compileInstruction, requester) {
         stopped: false,
         ended: false,
         evaluatingExpression: false,
-        justRequestedDebugSource: false
+        // inklecate asks for input again after answering each DebugSource, which isn't the
+        // end of a turn, so that many prompts are swallowed
+        pendingDebugSourcePrompts: 0
     };
     var session = sessions[sessionId];
 
@@ -239,8 +241,8 @@ function compile(compileInstruction, requester) {
             else if( jsonResponse.needInput ) {
                 if( session.evaluatingExpression )
                     session.evaluatingExpression = false;
-                // else if( session.justRequestedDebugSource )
-                //     session.justRequestedDebugSource = false;
+                else if( session.pendingDebugSourcePrompts > 0 )
+                    session.pendingDebugSourcePrompts--;
                 else
                     requester.send('play-requires-input', sessionId);
             }
@@ -250,7 +252,6 @@ function compile(compileInstruction, requester) {
 
                 let debugSourceMatches = jsonResponse.cmdOutput.match(debugSourceRegex);
                 if( debugSourceMatches ) {
-                    // session.justRequestedDebugSource = true;
                     requester.send('return-location-from-source', sessionId, {
                         lineNumber: parseInt(debugSourceMatches[2]),
                         filename: debugSourceMatches[3]
@@ -354,8 +355,10 @@ ipc.on("evaluate-expression", (event, expressionText, sessionId) => {
 ipc.on("get-location-in-source", (event, offset, sessionId) => {
     if( sessions[sessionId] ) {
         const playProcess = sessions[sessionId].process;
-        if( playProcess )
+        if( playProcess ) {
+            sessions[sessionId].pendingDebugSourcePrompts++;
             playProcess.stdin.write("DebugSource("+offset+")\n");
+        }
     }
 });
 

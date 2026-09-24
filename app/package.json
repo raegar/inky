@@ -27,6 +27,7 @@
   },
   "homepage": "http://www.inklestudios.com/ink",
   "dependencies": {
+    "@dagrejs/dagre": "^1.1.8",
     "chokidar": "^3.6.0",
     "fuzzaldrin-plus": "^0.6.0",
     "inkjs": "^2.2.3",

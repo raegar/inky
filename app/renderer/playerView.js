@@ -163,6 +163,8 @@ function replayComplete(sessionId) {
     $textBuffer.find('.audioLoopSlot').remove();
 }
 
+// Returns the paragraph's offset into the story's output so far, which inklecate can map
+// back to a line of source
 function addTextSection(text)
 {
     var $paragraph = $("<p class='storyText'></p>");
@@ -220,6 +222,8 @@ function addTextSection(text)
 
     if( animationEnabled && shouldAnimate() )
         fadeIn($paragraph);
+
+    return previousContentLength;
 }
 
 let currentInkFile = null;

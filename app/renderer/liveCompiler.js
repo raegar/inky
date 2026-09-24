@@ -202,6 +202,7 @@ function isLatestTurn() {
 }
 
 function choose(choice) {
+    if( events.choiceMade ) events.choiceMade(choice.number);
     ipc.send("play-continue-with-choice-number", choice.number, choice.sourceSessionId);
     choiceSequence.push(choice.number);
     currentTurnIdx++;
@@ -347,10 +348,12 @@ ipc.on("play-requires-input", (event, fromSessionId) => {
         if( replaying ) {
             var replayEntry = choiceSequence[currentTurnIdx];
             currentTurnIdx++;
-            if( typeof replayEntry == 'number' )
+            if( typeof replayEntry == 'number' ) {
+                if( events.choiceMade ) events.choiceMade(replayEntry);
                 ipc.send("play-continue-with-choice-number", replayEntry, fromSessionId);
-            else
+            } else {
                 sendCommand(replayEntry, fromSessionId);
+            }
         } 
 
         if( justCompletedReplay ) 

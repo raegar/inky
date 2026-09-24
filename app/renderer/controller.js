@@ -21,6 +21,7 @@ const PlayerView = require("./playerView.js").PlayerView;
 const ToolbarView = require("./toolbarView.js").ToolbarView;
 const NavView = require("./navView.js").NavView;
 const FlowView = require("./flowView.js").FlowView;
+const PlayPath = require("./playPath.js").PlayPath;
 const AssetsView = require("./assetsView.js").AssetsView;
 const VariablesView = require("./variablesView.js").VariablesView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
@@ -98,6 +99,7 @@ LiveCompiler.setEvents({
     },
     compileComplete: (sessionId) => {
         PlayerView.prepareForNewPlaythrough(sessionId);
+        PlayPath.reset();
         EditorView.clearErrors();
         ToolbarView.clearIssueSummary();
         try { FlowView.requestRefresh(); } catch(_) {}
@@ -105,12 +107,17 @@ LiveCompiler.setEvents({
     },
     selectIssue: gotoIssue,
     textAdded: (text) => {
-        PlayerView.addTextSection(text);
+        var offset = PlayerView.addTextSection(text);
+        if( text.trim().length > 0 ) PlayPath.textAdded(offset);
     },
     tagsAdded: (tags) => {
         PlayerView.addTags(tags);
     },
+    choiceMade: (choiceNumber) => {
+        PlayPath.choiceMade(choiceNumber);
+    },
     choiceAdded: (choice, isLatestTurn) => {
+        PlayPath.choiceOffered(choice.number, choice.choice.text);
         if( isLatestTurn ) {
             PlayerView.addChoice(choice, () => {
                 LiveCompiler.choose(choice)
@@ -143,11 +150,23 @@ LiveCompiler.setEvents({
                     PlayerView.contentReady();
                 }
 
-                // Update the Variables panel while inklecate's waiting (it can only answer now)
-                if( !replaying && VariablesView.isVisible() )
-                    VariablesView.refresh(doneCallback);
-                else
-                    doneCallback();
+                // Ask inklecate what the open panels need while it's waiting (the only time it
+                // can answer): which knots this turn's text came from, for the Narrative Flow
+                // graph, then the variables' values
+                var updateVariables = () => {
+                    if( !replaying && VariablesView.isVisible() )
+                        VariablesView.refresh(doneCallback);
+                    else
+                        doneCallback();
+                };
+                if( FlowView.isGraphVisible() ) {
+                    PlayPath.resolve(() => {
+                        if( !replaying ) FlowView.playPathChanged();
+                        updateVariables();
+                    });
+                } else {
+                    updateVariables();
+                }
                 return;
             }
 
@@ -164,11 +183,14 @@ LiveCompiler.setEvents({
     },
     commandSent: (entry) => {
         PlayerView.addCommandNote(entry);
+        if( entry.type == 'divert' ) PlayPath.jumped();
     },
     replayComplete: (sessionId) => {
         PlayerView.replayComplete(sessionId);
+        FlowView.playPathChanged();
     },
     storyCompleted: () => {
+        FlowView.playPathChanged();
         PlayerView.addTerminatingMessage(i18n._("End of story"), "end");
     },
     exitDueToError: () => {
