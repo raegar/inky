@@ -35,7 +35,28 @@ editor.on("changeSelection", ()=>{
 // Exclude language_tools.textCompleter but add the Ink completer
 editor.completers = editor.completers.filter(
     (completer) => completer !== language_tools.textCompleter);
+
+// Everything after # on a line is a tag, where ink keywords and snippets don't belong,
+// so only the ink completer (which suggests media tags and files there) runs
+const isInTag = (session, pos) => /#[^#]*$/.test(session.getLine(pos.row).slice(0, pos.column));
+editor.completers = editor.completers.map((completer) => Object.assign(Object.create(completer), {
+    getCompletions: (ed, session, pos, prefix, callback) => {
+        if( isInTag(session, pos) ) callback(null, []);
+        else completer.getCompletions(ed, session, pos, prefix, callback);
+    }
+}));
 editor.completers.push(inkCompleter);
+
+// Show the list of image/audio files as soon as "# IMAGE " (etc.) has been typed,
+// rather than waiting for the first letter of the file name
+editor.commands.on("afterExec", (e) => {
+    if( e.command.name != "insertstring" || (e.args != " " && e.args != ":") ) return;
+    if( !editor.getOption("enableLiveAutocompletion") ) return;
+    const cursor = editor.getCursorPosition();
+    const lineBeforeCursor = editor.session.getLine(cursor.row).slice(0, cursor.column);
+    if( /#\s*(IMAGE|AUDIO|AUDIOLOOP)\s*:?\s*$/i.test(lineBeforeCursor) )
+        editor.execCommand("startAutocomplete");
+});
 
 // Unbind windows CTRL-P: "Jump to matching bracket" since it collides with
 // our "go to anything" command.

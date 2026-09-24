@@ -1,3 +1,28 @@
+const { ProjectMedia } = require("./projectMedia.js");
+
+const MEDIA_TAGS = [
+    { name: "IMAGE", meta: "Show an image" },
+    { name: "AUDIO", meta: "Play a sound once" },
+    { name: "AUDIOLOOP", meta: "Loop background audio" },
+    { name: "AUDIOSTOP", meta: "Stop audio" }
+];
+
+// Text before the cursor that means we're typing a media tag's file name, e.g. "# IMAGE tem"
+const MEDIA_FILE_CONTEXT = /#\s*(IMAGE|AUDIO|AUDIOLOOP)(?:\s*:\s*|\s+)([^#]*)$/i;
+
+// Text before the cursor that means we're typing a tag's name, e.g. "# IM"
+const TAG_NAME_CONTEXT = /#\s*[A-Za-z]*$/;
+
+function getMediaFileSuggestions(inkFiles, property) {
+    const projectDir = ProjectMedia.projectDirFor(inkFiles[0]);
+    const meta = property == "IMAGE" ? "Image" : "Audio";
+    return ProjectMedia.listFiles(projectDir, property).map(file => ({
+        caption: file,
+        value: file,
+        meta: meta
+    }));
+}
+
 function union(sets) {
     const u = new Set();
     for (const set of sets) {
@@ -77,6 +102,18 @@ exports.inkCompleter = {
         //    targets, (because they can be used as variables) and vocab words.
         //    (because logic can output text)
         // 3) If we are not in either, we should only suggest vocab words.
+
+        // In a tag: suggest media tag names, or the files in images/ or audio/
+        const lineBeforeCursor = session.getLine(pos.row).slice(0, pos.column);
+        const mediaFile = MEDIA_FILE_CONTEXT.exec(lineBeforeCursor);
+        if( mediaFile ) {
+            callback(null, getMediaFileSuggestions(this.inkFiles, mediaFile[1].toUpperCase()));
+            return;
+        }
+        if( TAG_NAME_CONTEXT.test(lineBeforeCursor) ) {
+            callback(null, MEDIA_TAGS.map(tag => ({ caption: tag.name, value: tag.name, meta: tag.meta })));
+            return;
+        }
 
         const cursorToken = session.getTokenAt(pos.row, pos.column);
         const isCursorInDivert = (cursorToken.type.indexOf("divert") != -1);
