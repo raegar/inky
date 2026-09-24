@@ -7,6 +7,7 @@ const mkdirp = require('mkdirp');
 const i18n = require('./i18n.js');
 const { InkMode } = require('./ace-ink-mode/ace-ink.js');
 const { PlayerView } = require('./playerView.js');
+const InkMedia = require('../export-for-web-template/inkMedia.js');
 
 const EditorView = require("./editorView.js").EditorView;
 const NavView = require("./navView.js").NavView;
@@ -545,6 +546,50 @@ InkProject.prototype.buildForWeb = function(jsonFilePath, targetDirectory) {
 
     copyFile(path.join(templateDir, "main.js"), 
          path.join(targetDirectory, "main.js"));
+
+    copyFile(path.join(templateDir, "inkMedia.js"),
+             path.join(targetDirectory, "inkMedia.js"));
+
+    // Copy images/ and audio/, and list their contents so that the web player can find
+    // files the same way Inky does (e.g. "# AUDIO bell" plays audio/bell.wav)
+    var mediaFiles = this.copyMediaForWeb(targetDirectory);
+    fs.writeFileSync(path.join(targetDirectory, "media-files.js"),
+        `var inkMediaFiles = ${JSON.stringify(mediaFiles, null, 1)};
+`);
+}
+
+// Copies the project's media folders into a web export. Returns the copied files'
+// paths relative to the export folder, using forward slashes.
+InkProject.prototype.copyMediaForWeb = function(targetDirectory) {
+    var mediaFiles = [];
+    var projectDir = this.mainInk.projectDir;
+    if( !projectDir ) return mediaFiles;
+
+    var listFiles = (dir, relDir) => {
+        for( var entry of fs.readdirSync(dir, { withFileTypes: true }) ) {
+            if( entry.name.startsWith(".") ) continue;
+            var relPath = relDir + "/" + entry.name;
+            if( entry.isDirectory() ) listFiles(path.join(dir, entry.name), relPath);
+            else mediaFiles.push(relPath);
+        }
+    };
+
+    for( var folder of [InkMedia.IMAGE_FOLDER, InkMedia.AUDIO_FOLDER] ) {
+        var source = path.join(projectDir, folder);
+        if( !fs.existsSync(source) ) continue;
+
+        var destination = path.join(targetDirectory, folder);
+        if( path.resolve(source) != path.resolve(destination) ) {
+            try {
+                fs.cpSync(source, destination, { recursive: true });
+            } catch(e) {
+                alert(`${i18n._("Failed to copy")} ${folder}/: ${e.message}`);
+                continue;
+            }
+        }
+        listFiles(source, folder);
+    }
+    return mediaFiles;
 }
 
 InkProject.prototype.tryClose = function() {
