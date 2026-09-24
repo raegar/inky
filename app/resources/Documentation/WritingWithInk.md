@@ -3536,7 +3536,7 @@ Choose Media → Images → Insert Image…
 
 You can also drag image files from your desktop straight onto the editor: they're copied into `images/` and the tags are added where you drop them.
 
-**The Images and Audio panel** (the picture button in the toolbar, or View → Images and Audio…) shows everything in your `images/` and `audio/` folders. Click a picture to add it at the cursor, or drag it to where you want it in your story. For sounds, press ▶ to listen, then choose Effect (plays once) or Loop (keeps playing). Files that no tag uses yet are marked *unused*, and tags whose file can't be found are listed under *Missing*: click one to go to that line.
+**The Images and Audio panel** (the picture button in the toolbar, or Story → Images and Audio…) shows everything in your `images/` and `audio/` folders. Click a picture to add it at the cursor, or drag it to where you want it in your story. For sounds, press ▶ to listen, then choose Effect (plays once) or Loop (keeps playing). Files that no tag uses yet are marked *unused*, and tags whose file can't be found are listed under *Missing*: click one to go to that line.
 
 When typing a tag yourself, Inky suggests the files in your `images/` folder as soon as you've typed `# IMAGE `, so you don't have to remember exact file names.
 
@@ -3670,7 +3670,7 @@ Use `.mp3` or `.ogg` for loops/music. Use `.wav` for short effects. Keep file si
 
 # Part 9: Seeing Your Story's Shape
 
-The **Narrative Flow** panel (the crossed-arrows button in the toolbar, or View → Narrative Flow…) shows how the knots and stitches in your story connect. Choose **Graph** to see it as a map:
+The **Narrative Flow** panel (the crossed-arrows button in the toolbar, or Story → Narrative Flow…) shows how the knots and stitches in your story connect. Choose **Graph** to see it as a map:
 
 - Each box is a knot or stitch, and each arrow is a divert. Arrows from a choice are labelled with the choice's text.
 - **Start** is the top of your story. Follow the arrows down from it to see every route a player can take.
