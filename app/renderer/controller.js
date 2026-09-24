@@ -21,6 +21,7 @@ const PlayerView = require("./playerView.js").PlayerView;
 const ToolbarView = require("./toolbarView.js").ToolbarView;
 const NavView = require("./navView.js").NavView;
 const FlowView = require("./flowView.js").FlowView;
+const PlayPath = require("./playPath.js").PlayPath;
 const AssetsView = require("./assetsView.js").AssetsView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
 const LiveCompiler = require("./liveCompiler.js").LiveCompiler;
@@ -97,6 +98,7 @@ LiveCompiler.setEvents({
     },
     compileComplete: (sessionId) => {
         PlayerView.prepareForNewPlaythrough(sessionId);
+        PlayPath.reset();
         EditorView.clearErrors();
         ToolbarView.clearIssueSummary();
         try { FlowView.requestRefresh(); } catch(_) {}
@@ -104,12 +106,17 @@ LiveCompiler.setEvents({
     },
     selectIssue: gotoIssue,
     textAdded: (text) => {
-        PlayerView.addTextSection(text);
+        var offset = PlayerView.addTextSection(text);
+        if( text.trim().length > 0 ) PlayPath.textAdded(offset);
     },
     tagsAdded: (tags) => {
         PlayerView.addTags(tags);
     },
+    choiceMade: (choiceNumber) => {
+        PlayPath.choiceMade(choiceNumber);
+    },
     choiceAdded: (choice, isLatestTurn) => {
+        PlayPath.choiceOffered(choice.number, choice.choice.text);
         if( isLatestTurn ) {
             PlayerView.addChoice(choice, () => {
                 LiveCompiler.choose(choice)
@@ -141,7 +148,17 @@ LiveCompiler.setEvents({
                 } else {
                     PlayerView.contentReady();
                 }
-                doneCallback();
+
+                // While the Narrative Flow graph is showing, find which knots this turn's
+                // text came from (inklecate can only say while it's waiting, i.e. now)
+                if( FlowView.isGraphVisible() ) {
+                    PlayPath.resolve(() => {
+                        if( !replaying ) FlowView.playPathChanged();
+                        doneCallback();
+                    });
+                } else {
+                    doneCallback();
+                }
                 return;
             }
 
@@ -158,8 +175,10 @@ LiveCompiler.setEvents({
     },
     replayComplete: (sessionId) => {
         PlayerView.replayComplete(sessionId);
+        FlowView.playPathChanged();
     },
     storyCompleted: () => {
+        FlowView.playPathChanged();
         PlayerView.addTerminatingMessage(i18n._("End of story"), "end");
     },
     exitDueToError: () => {

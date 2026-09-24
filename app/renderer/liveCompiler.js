@@ -162,6 +162,7 @@ function stopInklecateSession(idToStop) {
 }
 
 function choose(choice) {
+    if( events.choiceMade ) events.choiceMade(choice.number);
     ipc.send("play-continue-with-choice-number", choice.number, choice.sourceSessionId);
     choiceSequence.push(choice.number);
     currentTurnIdx++;
@@ -310,6 +311,7 @@ ipc.on("play-requires-input", (event, fromSessionId) => {
         if( replaying ) {
             var replayChoiceNumber = choiceSequence[currentTurnIdx];
             currentTurnIdx++;
+            if( events.choiceMade ) events.choiceMade(replayChoiceNumber);
             ipc.send("play-continue-with-choice-number", replayChoiceNumber, fromSessionId);
         } 
 
@@ -426,6 +428,7 @@ exports.LiveCompiler = {
     getIssuesForFilename: (filename) => _.filter(allIssues(), i => i.filename == filename),
     setMediaIssueChecker: (checker) => { mediaIssueChecker = checker; },
     choose: choose,
+    isReplaying: () => replaying,
     rewind: rewind,
     stepBack: stepBack,
     getLocationInSource: getLocationInSource,
