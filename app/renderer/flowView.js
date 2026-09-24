@@ -24,14 +24,21 @@ function ensurePanel() {
   const $body = $('<div class="flowBody"></div>');
   const $labels = $('<div class="flowLabels"><ul class="flowList"></ul></div>');
   const $graph = $(`<div class="flowGraph">
+      <div class="flowGraphTools">
+        <button class="zoomOut" title="Zoom out">−</button>
+        <button class="zoomIn" title="Zoom in">+</button>
+        <button class="zoomFit" title="Fit the graph to the width of the panel">Fit</button>
+        <label title="Show each knot's stitches as separate boxes"><input type="checkbox" class="showStitches"/> Stitches</label>
+      </div>
       <div class="flowLegend">
         <span><i class="key visited"></i>visited</span>
         <span><i class="key current"></i>you are here</span>
         <span><i class="key unreachable"></i>nothing leads here</span>
         <span><i class="key problem">!</i>problem</span>
         <span><i class="key ends"></i>can end</span>
+        <span><i class="key tunnel"></i>tunnel</span>
       </div>
-      <svg/>
+      <div class="flowGraphScroll"><svg/></div>
     </div>`).hide();
   $body.append($labels).append($graph);
 
@@ -59,7 +66,14 @@ function ensurePanel() {
         #flow-wrapper .flowBody { display:flex; gap:8px; padding: 8px 10px 12px; }
         /* List sizes to its content (longest item) up to a cap; graph takes the rest */
         #flow-wrapper .flowLabels { flex: 0 0 auto; width: max-content; min-width: 180px; max-width: 60%; overflow:auto; }
-        #flow-wrapper .flowGraph { flex: 1 1 auto; min-width: 200px; overflow:auto; height: 100%; }
+        #flow-wrapper .flowGraph { flex: 1 1 auto; min-width: 200px; overflow:hidden; flex-direction:column; min-height:0; }
+        #flow-wrapper .flowGraphScroll { flex: 1 1 auto; overflow:auto; min-height:0; }
+        #flow-wrapper .flowGraphTools { display:flex; align-items:center; gap:4px; padding:0 2px 6px; font-size:11px; color:#666; }
+        #flow-wrapper .flowGraphTools button { min-width:24px; padding:1px 6px; border:1px solid rgba(0,0,0,0.15); border-radius:3px; background:none; color:inherit; cursor:pointer; }
+        #flow-wrapper .flowGraphTools button:hover { border-color:#5aa9e6; }
+        #flow-wrapper .flowGraphTools label { margin-left:8px; display:inline-flex; align-items:center; gap:3px; cursor:pointer; }
+        .dark #flow-wrapper .flowGraphTools, .contrast #flow-wrapper .flowGraphTools { color:#bbb; }
+        .dark #flow-wrapper .flowGraphTools button, .contrast #flow-wrapper .flowGraphTools button { border-color:rgba(255,255,255,0.2); }
         #flow-wrapper .flowGraph { position: relative; }
         #flow-wrapper .flowGraph svg { display:block; }
         #flow-wrapper .flowGraph svg.zooming { cursor: zoom-in; }
@@ -97,6 +111,14 @@ function ensurePanel() {
         #flow-wrapper .flowGraph .label { fill:#fff; font-size:11px; font-family:system-ui, sans-serif; pointer-events:none; }
         #flow-wrapper .flowGraph .edge { stroke:#999; stroke-width:1.2; fill:none; }
         #flow-wrapper .flowGraph .edge.fallthrough { stroke-dasharray:3 3; }
+        #flow-wrapper .flowGraph .edge.tunnel { stroke:#9b6bd6; stroke-dasharray:6 3; }
+        #flow-wrapper .flowGraph .arrow.tunnel { fill:#9b6bd6; }
+        #flow-wrapper .flowGraph .node .returnMark { fill:#c9b3ee; font-size:12px; font-weight:700; pointer-events:none; }
+        /* Hovering a box fades everything it isn't connected to */
+        #flow-wrapper .flowGraph svg.focusing .node:not(.related),
+        #flow-wrapper .flowGraph svg.focusing .edgeLabel:not(.related) { opacity:0.2; }
+        #flow-wrapper .flowGraph svg.focusing .edge:not(.related) { opacity:0.08; }
+        #flow-wrapper .flowGraph svg.focusing .edge.related { stroke-width:2.2; }
         #flow-wrapper .flowGraph .edge.taken { stroke:#2a72b5; stroke-width:2.5; }
         #flow-wrapper .flowGraph .arrow { fill:#999; }
         #flow-wrapper .flowGraph .arrow.taken { fill:#2a72b5; }
@@ -117,6 +139,7 @@ function ensurePanel() {
         #flow-wrapper .flowLegend .key.unreachable { border:1px dashed #999; }
         #flow-wrapper .flowLegend .key.problem { width:10px; border-radius:50%; background:#e6a23c; color:#fff; font-size:8px; font-weight:700; line-height:10px; text-align:center; }
         #flow-wrapper .flowLegend .key.ends { height:4px; background:#888; }
+        #flow-wrapper .flowLegend .key.tunnel { height:0; border-top:2px dashed #9b6bd6; border-radius:0; }
         .dark #flow-wrapper .flowLegend, .contrast #flow-wrapper .flowLegend { color:#aaa; }
       </style>`;
     $('head').append(style);
@@ -129,7 +152,7 @@ function ensurePanel() {
         #flow-wrapper .flowLabels { display: none; }
         #flow-wrapper .flowGraph { display: none; }
         #flow-wrapper.show-list .flowLabels { display: block; }
-        #flow-wrapper.show-graph .flowGraph { display: block; }
+        #flow-wrapper.show-graph .flowGraph { display: flex; }
         #flow-wrapper.show-list:not(.show-graph) .flowLabels { flex: 1 1 auto; max-width: none; }
         #flow-wrapper.show-graph:not(.show-list) .flowGraph { flex: 1 1 auto; min-width: 0; }
       </style>`;
@@ -149,8 +172,8 @@ function ensurePanel() {
       } else {
         $panel.addClass('show-graph');
         $btn.addClass('active');
-        $graph.show();
-        renderGraph($graph.find('svg'));
+        $graph.css('display', '');
+        fitWidth();
         refreshPlayPath();
         try {
           // Only ensure width when Flow is the sole visible panel
@@ -162,6 +185,8 @@ function ensurePanel() {
             NavView.ensureWidth(desired);
           }
         } catch(_) {}
+        // Again once the sidebar has finished widening
+        setTimeout(fitWidth, 250);
       }
     } else { // list
       if (isActive) {
@@ -175,6 +200,11 @@ function ensurePanel() {
       }
     }
   });
+
+  $graph.find('.zoomIn').on('click', () => { setZoomScale(getZoomScale() * 1.25); renderGraph($graph.find('svg')); });
+  $graph.find('.zoomOut').on('click', () => { setZoomScale(getZoomScale() / 1.25); renderGraph($graph.find('svg')); });
+  $graph.find('.zoomFit').on('click', () => fitWidth());
+  $graph.find('.showStitches').on('change', (e) => { showStitches = e.currentTarget.checked; fitWidth(); });
 
   // Zoom the graph with Ctrl/Cmd + mouse wheel
   $graph.on('wheel', (evt) => {
@@ -294,7 +324,14 @@ function scanProject() {
           while ((m = re.exec(tok.value))) references.push({ from: current ? current.id : START, target: m[1], knot });
         }
         else if (type === 'divert.target' && tok.value && !inFunction) {
-          diverts.push({ from: current ? current.id : START, target: tok.value.trim(), knot, label: choiceLabel, file: f, row });
+          // "-> knot ->" calls a tunnel: the story comes back here when it reaches ->->
+          const rowTokens = session.getTokens(row);
+          const nextToken = rowTokens.slice(rowTokens.indexOf(tok) + 1).find(t => t.value.trim());
+          const isTunnel = !!nextToken && nextToken.type === 'divert.operator' && nextToken.value.trim() === '->';
+          diverts.push({ from: current ? current.id : START, target: tok.value.trim(), knot, label: choiceLabel, file: f, row, kind: isTunnel ? 'tunnel' : 'divert' });
+        }
+        else if (type === 'divert.operator' && tok.value.trim().indexOf('->->') === 0 && current) {
+          current.returns = true;
         }
         else if (type === 'divert.to-special' && current) {
           current.ends = true;
@@ -362,7 +399,7 @@ function computeGraph() {
   const nodesById = new Map();
   flows.forEach(fl => { if (fl.type !== 'Function' && !nodesById.has(fl.id)) nodesById.set(fl.id, Object.assign({ issues: [] }, fl)); });
   if (diverts.some(d => d.from === START)) {
-    nodesById.set(START, { id: START, name: 'Start', type: 'Start', file: null, row: 0, issues: [] });
+    nodesById.set(START, { id: START, name: 'Story start', type: 'Start', file: null, row: 0, issues: [] });
   }
 
   // Finds the flow a divert leads to. Returns its id, null for a divert target chosen
@@ -383,7 +420,7 @@ function computeGraph() {
     if (!edgesByKey.has(key)) edgesByKey.set(key, { from, to, labels: [], kind });
     const edge = edgesByKey.get(key);
     if (label && edge.labels.indexOf(label) === -1) edge.labels.push(label);
-    if (kind === 'divert') edge.kind = 'divert';
+    if (kind === 'divert' || (kind === 'tunnel' && edge.kind === 'fallthrough')) edge.kind = kind;
   };
 
   diverts.forEach(d => {
@@ -395,7 +432,7 @@ function computeGraph() {
       to = `?${d.target}`;
       if (!nodesById.has(to)) nodesById.set(to, { id: to, name: d.target, type: 'Unresolved', file: null, row: 0, issues: [] });
     }
-    addEdge(d.from, to, d.label, 'divert');
+    addEdge(d.from, to, d.label, d.kind);
   });
 
   // Diverting to a knot with nothing before its first stitch runs straight into that stitch
@@ -427,7 +464,41 @@ function computeGraph() {
   markPlayPath(nodesById, edgesByKey);
 
   const nodes = Array.from(nodesById.values());
-  return { nodes, edges };
+  return showStitches ? { nodes, edges } : collapseStitches(nodes, edges);
+}
+
+// Folds stitches into their knots, so big stories show one box per knot
+function collapseStitches(nodes, edges) {
+  const byId = new Map();
+  nodes.filter(n => n.type !== 'Stitch').forEach(n => byId.set(n.id, Object.assign({}, n, { issues: n.issues.slice(), stitches: 0 })));
+  const knotOf = (id) => {
+    const knotId = id.split('.')[0];
+    return id.indexOf('.') !== -1 && byId.has(knotId) && !id.startsWith('?') ? knotId : id;
+  };
+  nodes.filter(n => n.type === 'Stitch').forEach(s => {
+    const k = byId.get(knotOf(s.id));
+    if (!k) { byId.set(s.id, Object.assign({}, s, { issues: s.issues.slice(), stitches: 0 })); return; }
+    k.stitches++;
+    k.visited = k.visited || s.visited;
+    k.current = k.current || s.current;
+    k.ends = k.ends || s.ends;
+    k.returns = k.returns || s.returns;
+    k.unreachable = k.unreachable && s.unreachable;
+    k.issues = k.issues.concat(s.issues);
+  });
+
+  const edgesByKey = new Map();
+  edges.forEach(e => {
+    const from = knotOf(e.from), to = knotOf(e.to);
+    if (from === to) return;
+    const key = `${from}->${to}`;
+    if (!edgesByKey.has(key)) edgesByKey.set(key, { from, to, labels: [], kind: e.kind, taken: false });
+    const merged = edgesByKey.get(key);
+    e.labels.forEach(l => { if (merged.labels.indexOf(l) === -1) merged.labels.push(l); });
+    merged.taken = merged.taken || e.taken;
+    if (e.kind === 'divert' || (e.kind === 'tunnel' && merged.kind === 'fallthrough')) merged.kind = e.kind;
+  });
+  return { nodes: Array.from(byId.values()), edges: Array.from(edgesByKey.values()) };
 }
 
 // Marks the knots the current playthrough has been through, the edges it took, and where
@@ -500,6 +571,8 @@ function nodeTooltip(n) {
   else if (n.visited) lines.push('Visited in this playthrough');
   if (n.unreachable) lines.push('Nothing leads here: no divert or choice goes to it');
   if (n.ends) lines.push('Can end the story (-> END or -> DONE)');
+  if (n.returns) lines.push('A tunnel: when it reaches ->-> the story goes back to wherever the tunnel was called from');
+  if (n.stitches) lines.push(`Has ${n.stitches} stitch${n.stitches == 1 ? '' : 'es'} (tick Stitches to show them)`);
   n.issues.forEach(i => lines.push(`${i.type === 'ERROR' || i.type === 'RUNTIME ERROR' ? 'Error' : 'Warning'}: ${i.message}`));
   return lines.join('\n');
 }
@@ -518,7 +591,7 @@ function renderGraph($svg) {
 
   data.nodes.forEach(n => {
     n.label = truncate(n.type === 'Stitch' ? n.id : n.name, 26);
-    const badge = n.issues.length ? 16 : 0;
+    const badge = (n.issues.length ? 16 : 0) + (n.returns ? 14 : 0);
     g.setNode(n.id, { width: Math.max(56, Math.ceil(textWidth(n.label, NODE_FONT)) + 20 + badge), height: 24 });
   });
   data.edges.forEach(e => {
@@ -529,7 +602,7 @@ function renderGraph($svg) {
   dagre.layout(g);
 
   const defs = svgEl('defs');
-  [['flowArrow', 'arrow'], ['flowArrowTaken', 'arrow taken']].forEach(([id, cls]) => {
+  [['flowArrow', 'arrow'], ['flowArrowTaken', 'arrow taken'], ['flowArrowTunnel', 'arrow tunnel']].forEach(([id, cls]) => {
     // Fixed size, rather than scaling with the line's thickness
     const marker = svgEl('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' });
     marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', class: cls }));
@@ -546,11 +619,11 @@ function renderGraph($svg) {
     const classes = ['edge', e.kind, e.taken ? 'taken' : ''].join(' ');
     viewport.appendChild(svgEl('path', {
       class: classes, d: edgePath(laidOut.points),
-      'marker-end': `url(#${e.taken ? 'flowArrowTaken' : 'flowArrow'})`,
+      'marker-end': `url(#${e.taken ? 'flowArrowTaken' : e.kind === 'tunnel' ? 'flowArrowTunnel' : 'flowArrow'})`,
       'data-from': e.from, 'data-to': e.to
     }));
     if (e.label) {
-      const lg = svgEl('g', { class: 'edgeLabel' + (e.taken ? ' taken' : ''), transform: `translate(${laidOut.x},${laidOut.y})` });
+      const lg = svgEl('g', { class: 'edgeLabel' + (e.taken ? ' taken' : ''), transform: `translate(${laidOut.x},${laidOut.y})`, 'data-from': e.from, 'data-to': e.to });
       const w = Math.ceil(textWidth(e.label, LABEL_FONT)) + 8;
       lg.appendChild(svgEl('title', {}, e.labels.join('\n')));
       lg.appendChild(svgEl('rect', { x: -w / 2, y: -7, width: w, height: 14, rx: 3 }));
@@ -573,7 +646,13 @@ function renderGraph($svg) {
       ng.appendChild(svgEl('circle', { class: 'badge', cx: box.width - 10, cy: box.height / 2, r: 6 }));
       ng.appendChild(svgEl('text', { class: 'badgeText', x: box.width - 10, y: box.height / 2 + 3.5, 'text-anchor': 'middle' }, '!'));
     }
+    if (n.returns) {
+      const x = box.width - 10 - (n.issues.length ? 16 : 0);
+      ng.appendChild(svgEl('text', { class: 'returnMark', x, y: box.height / 2 + 4, 'text-anchor': 'middle' }, '↩'));
+    }
     if (n.ends) ng.appendChild(svgEl('rect', { class: 'endMark', x: box.width / 2 - 10, y: box.height, width: 20, height: 4, rx: 2 }));
+    ng.addEventListener('mouseenter', () => focusOn(svg, n.id));
+    ng.addEventListener('mouseleave', () => focusOn(svg, null));
     if (n.file) {
       ng.style.cursor = 'pointer';
       ng.addEventListener('click', () => {
@@ -608,11 +687,42 @@ function renderGraph($svg) {
   svg.setAttribute('height', String(h));
   svg.style.width = w + 'px';
   svg.style.height = h + 'px';
+  lastContentWidth = contentWidth;
+}
+
+// Fades everything not connected to a node (or clears it, for null)
+function focusOn(svg, id) {
+  svg.classList.toggle('focusing', !!id);
+  svg.querySelectorAll('.related').forEach(el => el.classList.remove('related'));
+  if (!id) return;
+  const related = new Set([id]);
+  svg.querySelectorAll('.edge, .edgeLabel').forEach(el => {
+    if (el.dataset.from === id || el.dataset.to === id) {
+      el.classList.add('related');
+      related.add(el.dataset.from); related.add(el.dataset.to);
+    }
+  });
+  svg.querySelectorAll('g.node').forEach(el => { if (related.has(el.dataset.id)) el.classList.add('related'); });
+}
+
+// Draws the graph scaled to fit the panel's width (never larger than full size)
+function fitWidth() {
+  const $svg = $('#flow-wrapper .flowGraph svg');
+  if (!$svg.length || !isGraphVisible()) return;
+  setZoomScale(1);
+  renderGraph($svg);
+  const available = $('#flow-wrapper .flowGraphScroll').innerWidth() - 12;
+  if (lastContentWidth > available && available > 0) {
+    setZoomScale(available / lastContentWidth);
+    renderGraph($svg);
+  }
 }
 
 // Simple module-scoped zoom state/helpers
 let __flowZoomScale = 1;
-function setZoomScale(v){ __flowZoomScale = Math.max(0.5, Math.min(3, v)); }
+let lastContentWidth = 0;
+let showStitches = false;
+function setZoomScale(v){ __flowZoomScale = Math.max(0.2, Math.min(3, v)); }
 function getZoomScale(){ return __flowZoomScale; }
 
 function isGraphVisible() {
@@ -678,6 +788,7 @@ exports.FlowView = {
           NavView.ensureWidth(desired);
         }
       } catch(_) {}
+      setTimeout(fitWidth, 250);
     }
   }
 };

@@ -3484,6 +3484,8 @@ This version also includes a special tag that inserts an image immediately after
 
 **The quickest way to start** is File → New Illustrated Story…. Give your story a name, and Inky makes a folder for it with `images/` and `audio/` folders and a short example story that uses a picture, a background loop and a sound effect. Play it, then change it into your own.
 
+For a longer example, choose Ink → Full stories → The Forest (Inky Media)…, which saves a copy of a short illustrated story with several pictures, sound effects and background loops, using every tag in this section and the next.
+
 ### How it works
 - Save your image in a web-safe format (for example, `.png` or `.jpg`).
 - Place it in an `images/` folder alongside your `.ink` file.

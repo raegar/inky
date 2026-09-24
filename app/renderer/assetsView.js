@@ -5,7 +5,7 @@
 const $ = window.jQuery = require('./jquery-2.2.3.min.js');
 const path = require("path");
 const url = require("url");
-const { shell } = require("electron");
+const { ipcRenderer } = require("electron");
 const InkMedia = require('../export-for-web-template/inkMedia.js');
 const { ProjectMedia } = require('./projectMedia.js');
 const InkProject = require('./inkProject.js').InkProject;
@@ -79,33 +79,43 @@ function section(title, count) {
 function folderButton(projectDir, folder) {
     return $(`<a href="#" class="assetsFolderLink">Open folder</a>`).on('click', (e) => {
         e.preventDefault();
-        const dir = path.join(projectDir, folder);
-        require('fs').mkdirSync(dir, { recursive: true });
-        shell.openPath(dir);
+        // Opened by the main process, which reports it if Windows/macOS can't open it
+        ipcRenderer.send('open-project-folder', path.join(projectDir, folder));
     });
 }
 
-function render() {
+// What the panel last showed, so refreshes that find nothing changed leave it alone
+// (rebuilding it would stop a preview, and replace links while they're being clicked)
+let shownContents = null;
+
+function render(force) {
     const $panel = ensurePanel();
     if ($panel.hasClass('hidden')) return;
     const $body = $panel.find('.assetsBody');
+
+    const project = InkProject.currentProject;
+    const projectDir = project && ProjectMedia.projectDirFor(project.mainInk);
+    const tags = projectDir ? ProjectMedia.scanTags(project) : [];
+    const images = projectDir ? ProjectMedia.listFiles(projectDir, 'IMAGE') : [];
+    const sounds = projectDir ? ProjectMedia.listFiles(projectDir, 'AUDIO') : [];
+    const contents = JSON.stringify([projectDir, images, sounds,
+        tags.map(t => [t.property, t.val, t.path, t.error, t.inkFile.relativePath(), t.row, t.dynamic ? String(t.dynamic) : null])]);
+    if (!force && contents === shownContents) return;
+    shownContents = contents;
+
     const scrollTop = $body.scrollTop();
     stopPreview();
     $body.empty();
 
-    const project = InkProject.currentProject;
-    const projectDir = project && ProjectMedia.projectDirFor(project.mainInk);
     if (!projectDir) {
         $body.append($(`<p class="assetsEmpty">Save your project to add images and audio. They're kept in folders next to your main ink file.</p>`));
         $body.append($(`<p class="assetsEmpty">Or start with File → New Illustrated Story, which sets everything up for you.</p>`));
         return;
     }
 
-    const tags = ProjectMedia.scanTags(project);
     const usedLabel = (relPath) => ProjectMedia.isFileUsed(tags, relPath) ? null : $(`<span class="assetsUnused" title="No tag in your story uses this file yet">unused</span>`);
 
     // Images: thumbnails, click or drag to add
-    const images = ProjectMedia.listFiles(projectDir, 'IMAGE');
     const $images = section('Images', images.length);
     $images.find('h6').append(folderButton(projectDir, InkMedia.IMAGE_FOLDER));
     if (images.length == 0) {
@@ -125,7 +135,6 @@ function render() {
     $body.append($images);
 
     // Audio: preview, and add as a sound effect or a loop
-    const sounds = ProjectMedia.listFiles(projectDir, 'AUDIO');
     const $audio = section('Audio', sounds.length);
     $audio.find('h6').append(folderButton(projectDir, InkMedia.AUDIO_FOLDER));
     if (sounds.length == 0) {
@@ -184,6 +193,6 @@ exports.AssetsView = {
         ensurePanel();
         NavView.toggle('#assets-wrapper', buttonId);
         if ($('#assets-wrapper').hasClass('hidden')) stopPreview();
-        else render();
+        else render(true);
     }
 };
