@@ -94,6 +94,8 @@ h1.title {
   position: absolute;
   text-align: center;
   margin: 0;
+  /* Just a message, stretched across the toolbar: let clicks through to the buttons under it */
+  pointer-events: none;
 }
 
 #toolbar div.issuesSummary {
