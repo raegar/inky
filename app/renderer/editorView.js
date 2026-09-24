@@ -158,6 +158,19 @@ exports.EditorView = {
     getValue: () => { return editor.getValue(); },
     setValue: (v) => { editor.setValue(v); },
     insert: (txt) => editor.insert(txt),
+    // Inserts a tag without swallowing text: everything after # on a line is part of the
+    // tag, so any text after the cursor moves onto the next line.
+    insertTag: (tag) => {
+        const cursor = editor.getCursorPosition();
+        const line = editor.session.getLine(cursor.row);
+        const before = line.slice(0, cursor.column);
+        const after = line.slice(cursor.column);
+        let txt = tag;
+        if (before.trim() && !/\s$/.test(before)) txt = " " + txt;
+        if (after.trim()) txt += "\n";
+        editor.insert(txt);
+        editor.focus();
+    },
     gotoLine: (row, col) => { editor.gotoLine(row, col); editor.focus(); },
     addError: addError,
     setErrors: setErrors,

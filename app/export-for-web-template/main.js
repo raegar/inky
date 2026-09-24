@@ -5,6 +5,17 @@
 
     var savePoint = "";
 
+    // Media tags (IMAGE, AUDIO, AUDIOLOOP, AUDIOSTOP, BACKGROUND) work the same way as
+    // in Inky, using inkMedia.js. Inky's export also writes media-files.js, listing the
+    // files in images/ and audio/, so tags can leave off the folder and file extension.
+    var audio = new InkMedia.AudioPlayer();
+    var mediaFiles = (typeof inkMediaFiles !== 'undefined') ? inkMediaFiles : [];
+    function mediaPath(property, val) {
+        var found = InkMedia.resolve(property, val, function(p) { return mediaFiles.indexOf(p) !== -1; });
+        // Not one of the exported files, e.g. a full URL: use it as written
+        return found || val;
+    }
+
     let savedTheme;
     let globalTagTheme;
 
@@ -16,15 +27,15 @@
     if( globalTags ) {
         for(var i=0; i<story.globalTags.length; i++) {
             var globalTag = story.globalTags[i];
-            var splitTag = splitPropertyTag(globalTag);
+            var splitTag = InkMedia.parseTag(globalTag);
 
             // THEME: dark
-            if( splitTag && splitTag.property == "theme" ) {
+            if( splitTag && splitTag.property == "THEME" ) {
                 globalTagTheme = splitTag.val;
             }
 
             // author: Your Name
-            else if( splitTag && splitTag.property == "author" ) {
+            else if( splitTag && splitTag.property == "AUTHOR" ) {
                 var byline = document.querySelector('.byline');
                 byline.innerHTML = "by "+splitTag.val;
             }
@@ -67,38 +78,29 @@
             for(var i=0; i<tags.length; i++) {
                 var tag = tags[i];
 
-                // Detect tags of the form "X: Y". Currently used for IMAGE and CLASS but could be
-                // customised to be used for other things too.
-                var splitTag = splitPropertyTag(tag);
-				splitTag.property = splitTag.property.toUpperCase();
+                // Detect tags of the form "X: Y" or "X Y"
+                var splitTag = InkMedia.parseTag(tag);
+                if( !splitTag ) continue;
 
-                // AUDIO: src
-                if( splitTag && splitTag.property == "AUDIO" ) {
-                  if('audio' in this) {
-                    this.audio.pause();
-                    this.audio.removeAttribute('src');
-                    this.audio.load();
-                  }
-                  this.audio = new Audio(splitTag.val);
-                  this.audio.play();
+                // AUDIO: src - sound effect, played once
+                if( splitTag.property == "AUDIO" ) {
+                    audio.playOnce(mediaPath("AUDIO", splitTag.val));
                 }
 
-                // AUDIOLOOP: src
-                else if( splitTag && splitTag.property == "AUDIOLOOP" ) {
-                  if('audioLoop' in this) {
-                    this.audioLoop.pause();
-                    this.audioLoop.removeAttribute('src');
-                    this.audioLoop.load();
-                  }
-                  this.audioLoop = new Audio(splitTag.val);
-                  this.audioLoop.play();
-                  this.audioLoop.loop = true;
+                // AUDIOLOOP: src - background loop, replacing any current loop
+                else if( splitTag.property == "AUDIOLOOP" ) {
+                    audio.playLoop(mediaPath("AUDIOLOOP", splitTag.val));
+                }
+
+                // AUDIOSTOP, AUDIOSTOP: loop, AUDIOSTOP: once
+                else if( splitTag.property == "AUDIOSTOP" ) {
+                    audio.stop(splitTag.val);
                 }
 
                 // IMAGE: src
-                if( splitTag && splitTag.property == "IMAGE" ) {
+                else if( splitTag.property == "IMAGE" ) {
                     var imageElement = document.createElement('img');
-                    imageElement.src = splitTag.val;
+                    imageElement.src = mediaPath("IMAGE", splitTag.val);
                     storyContainer.appendChild(imageElement);
 
                     imageElement.onload = () => {
@@ -111,41 +113,41 @@
                 }
 
                 // LINK: url
-                else if( splitTag && splitTag.property == "LINK" ) {
+                else if( splitTag.property == "LINK" ) {
                     window.location.href = splitTag.val;
                 }
 
                 // LINKOPEN: url
-                else if( splitTag && splitTag.property == "LINKOPEN" ) {
+                else if( splitTag.property == "LINKOPEN" ) {
                     window.open(splitTag.val);
                 }
 
                 // BACKGROUND: src
-                else if( splitTag && splitTag.property == "BACKGROUND" ) {
-                    outerScrollContainer.style.backgroundImage = 'url('+splitTag.val+')';
+                else if( splitTag.property == "BACKGROUND" ) {
+                    outerScrollContainer.style.backgroundImage = 'url("'+mediaPath("BACKGROUND", splitTag.val)+'")';
                 }
 
                 // CLASS: className
-                else if( splitTag && splitTag.property == "CLASS" ) {
+                else if( splitTag.property == "CLASS" ) {
                     customClasses.push(splitTag.val);
                 }
 
                 // CLEAR - removes all existing content.
                 // RESTART - clears everything and restarts the story from the beginning
-                else if( tag == "CLEAR" || tag == "RESTART" ) {
+                else if( splitTag.property == "CLEAR" || splitTag.property == "RESTART" ) {
                     removeAll("p");
                     removeAll("img");
 
                     // Comment out this line if you want to leave the header visible when clearing
                     setVisible(".header", false);
 
-                    if( tag == "RESTART" ) {
+                    if( splitTag.property == "RESTART" ) {
                         restart();
                         return;
                     }
                 }
             }
-		
+
 		// Check if paragraphText is empty
 		if (paragraphText.trim().length == 0) {
                 continue; // Skip empty paragraphs
@@ -174,8 +176,7 @@
             var isClickable = true;
             for(var i=0; i<choiceTags.length; i++) {
                 var choiceTag = choiceTags[i];
-                var splitTag = splitPropertyTag(choiceTag);
-				splitTag.property = splitTag.property.toUpperCase();
+                var splitTag = InkMedia.parseTag(choiceTag);
 
                 if(choiceTag.toUpperCase() == "UNCLICKABLE"){
                     isClickable = false
@@ -243,6 +244,7 @@
 
     function restart() {
         story.ResetState();
+        audio.stopAllNow();
 
         setVisible(".header", true);
 
@@ -335,23 +337,6 @@
         }
     }
 
-    // Helper for parsing out tags of the form:
-    //  # PROPERTY: value
-    // e.g. IMAGE: source path
-    function splitPropertyTag(tag) {
-        var propertySplitIdx = tag.indexOf(":");
-        if( propertySplitIdx != null ) {
-            var property = tag.substr(0, propertySplitIdx).trim();
-            var val = tag.substr(propertySplitIdx+1).trim();
-            return {
-                property: property,
-                val: val
-            };
-        }
-
-        return null;
-    }
-
     // Loads save state if exists in the browser memory
     function loadSavePoint() {
 
@@ -359,12 +344,24 @@
             let savedState = window.localStorage.getItem('save-state');
             if (savedState) {
                 story.state.LoadJson(savedState);
+                restoreSavedAudio();
                 return true;
             }
         } catch (e) {
             console.debug("Couldn't load save state");
         }
         return false;
+    }
+
+    // Carries on the background loop that was playing when the game was saved
+    function restoreSavedAudio() {
+        audio.stopAllNow();
+        try {
+            let savedLoop = window.localStorage.getItem('save-audio-loop');
+            if (savedLoop) audio.playLoop(savedLoop);
+        } catch (e) {
+            console.debug("Couldn't load saved audio");
+        }
     }
 
     // Detects which theme (light or dark) to use
@@ -402,6 +399,7 @@
         if (saveEl) saveEl.addEventListener("click", function(event) {
             try {
                 window.localStorage.setItem('save-state', savePoint);
+                window.localStorage.setItem('save-audio-loop', audio.currentLoopSrc() || "");
                 document.getElementById("reload").removeAttribute("disabled");
                 window.localStorage.setItem('theme', document.body.classList.contains("dark") ? "dark" : "");
             } catch (e) {
@@ -426,6 +424,7 @@
             } catch (e) {
                 console.debug("Couldn't load save state");
             }
+            restoreSavedAudio();
             continueStory(true);
         });
 

@@ -151,7 +151,7 @@ LiveCompiler.setEvents({
         tryEvaluateNextExpression();
     },
     replayComplete: (sessionId) => {
-        PlayerView.showSessionView(sessionId);
+        PlayerView.replayComplete(sessionId);
     },
     storyCompleted: () => {
         PlayerView.addTerminatingMessage(i18n._("End of story"), "end");
@@ -283,7 +283,10 @@ ToolbarView.setEvents({
         PlayerView.previewStepBack();
         LiveCompiler.stepBack();
     },
-    rewind:   () => { LiveCompiler.rewind(); },
+    rewind:   () => {
+        PlayerView.markFreshStart();
+        LiveCompiler.rewind();
+    },
     didSetTitle: (title) => {
         if( process.platform == "win32" ) {
             ipc.send("set-native-window-title", title);
@@ -414,6 +417,10 @@ ipc.on("zoom", (event, amount) => {
 
 ipc.on("insertSnippet", (event, snippetContent) => {
     EditorView.insert(snippetContent);
+});
+
+ipc.on("insertTag", (event, tag) => {
+    EditorView.insertTag(tag);
 });
 
 function setInkFileWhenReady(getInkFile, callback) {
