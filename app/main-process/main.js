@@ -1,4 +1,4 @@
-const {app, BrowserWindow, ipcMain, dialog, ipcRenderer, Menu} = require('electron')
+const {app, BrowserWindow, ipcMain, dialog, ipcRenderer, Menu, shell} = require('electron')
 const i18n = require("./i18n/i18n.js")
 const {ProjectWindow} = require("./projectWindow.js");
 const {DocumentationWindow} = require("./documentationWindow.js");
@@ -73,6 +73,24 @@ ipcMain.handle("showSaveDialog", async (event,saveOptions) => {
 })
 
 ipcMain.on("main-file-saved", (event, absFilePath) => resolveSaveWaiter(event.sender, absFilePath));
+
+// "Open folder" in the Images and Audio panel
+ipcMain.on("open-project-folder", async (event, folderPath) => {
+    let error;
+    try {
+        fs.mkdirSync(folderPath, { recursive: true });
+        error = await shell.openPath(folderPath);
+    } catch (err) {
+        error = err.message;
+    }
+    if (error) {
+        dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender), {
+            type: 'error',
+            message: i18n._('Could not open the folder'),
+            detail: folderPath + "\n\n" + error
+        });
+    }
+});
 
 // Images and audio are copied into folders next to the main ink file, so it needs to
 // have been saved. Offers to save it, and resolves with its path, or null if not saved.
