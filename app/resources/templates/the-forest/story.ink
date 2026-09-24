@@ -23,6 +23,11 @@ Sunlight filters through the trees. # IMAGE clearing.jpg
     You rest for a moment on a mossy log. The wood groans beneath you. #AUDIO log_creak.wav
     You notice strange carvings in the bark. #IMAGE carvings.jpg
     -> forest_log
+    
+*   ->
+    You wander the forest lost, forever. 
+    This is the end.
+        -> END
 
 
 
