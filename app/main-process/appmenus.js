@@ -419,6 +419,17 @@ function refresh() {
                     click: callbacks.showAssets
                 },
                 {
+                    label: i18n._('Variables...'),
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.showVariables
+                },
+                {
+                    label: i18n._('Play from Here'),
+                    accelerator: 'CmdOrCtrl+Shift+Enter',
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.playFromCursor
+                },
+                {
                     label: i18n._('Tags visible'),
                     type: "checkbox",
                     checked: true,

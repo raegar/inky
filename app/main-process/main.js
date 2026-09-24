@@ -28,7 +28,7 @@ let pendingPathToOpen = null;
 let hasFinishedLaunch = false;
 
 // main
-ipcMain.on('show-context-menu', (event) => {
+ipcMain.on('show-context-menu', (event, info) => {
     const template = [
         {
             label: 'Cut',
@@ -44,6 +44,13 @@ ipcMain.on('show-context-menu', (event) => {
         },
       { type: 'separator' },
     ]
+    // Right-clicked inside a knot in the editor
+    if (info && info.playFrom) {
+        template.push({
+            label: i18n._('Play from') + ` "${info.playFrom}"`,
+            click: () => event.sender.send('play-from', info.playFrom)
+        });
+    }
     const menu = Menu.buildFromTemplate(template)
     menu.popup(BrowserWindow.fromWebContents(event.sender))
 })
@@ -403,6 +410,12 @@ app.on('ready', function () {
         },
         showAssets: (item, focusedWindow) => {
             if (focusedWindow) focusedWindow.webContents.send('toggle-assets-view');
+        },
+        showVariables: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.send('toggle-variables-view');
+        },
+        playFromCursor: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.send('play-from-cursor');
         },
         addWatchExpression: (item, focusedWindow) => {
             focusedWindow.webContents.send("add-watch-expression");

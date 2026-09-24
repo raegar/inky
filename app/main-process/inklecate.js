@@ -171,6 +171,13 @@ function compile(compileInstruction, requester) {
             try {
                 var jsonResponse = JSON.parse(line);
             } catch(err) {
+                // inklecate sometimes writes two responses on one line, e.g. the error from
+                // setting a variable and then its input prompt: {"issues":[...]}{"needInput": true}
+                var parts = line.split(/(?<=\})(?=\{)/);
+                if( parts.length > 1 ) {
+                    lines.splice(i + 1, 0, ...parts);
+                    continue;
+                }
                 console.error("Failed to parse JSON response from inklecate: "+line);
                 continue;
             }
@@ -352,6 +359,26 @@ ipc.on("get-location-in-source", (event, offset, sessionId) => {
             sessions[sessionId].pendingDebugSourcePrompts++;
             playProcess.stdin.write("DebugSource("+offset+")\n");
         }
+    }
+});
+
+// Jumps the running story to a knot or stitch, as if it had diverted there
+ipc.on("play-divert", (event, target, sessionId) => {
+    if( !/^[A-Za-z_][\w.]*$/.test(target) ) return;
+    if( sessions[sessionId] ) {
+        const playProcess = sessions[sessionId].process;
+        if( playProcess )
+            playProcess.stdin.write("-> "+target+"\n");
+    }
+});
+
+// Sets a variable in the running story. value is an ink expression, e.g. 5, true, "text"
+ipc.on("play-set-variable", (event, name, value, sessionId) => {
+    if( !/^[A-Za-z_]\w*$/.test(name) ) return;
+    if( sessions[sessionId] ) {
+        const playProcess = sessions[sessionId].process;
+        if( playProcess )
+            playProcess.stdin.write(name+" = "+String(value).replace(/[\r\n]+/g, " ")+"\n");
     }
 });
 

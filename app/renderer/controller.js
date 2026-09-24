@@ -14,7 +14,7 @@ require("./util.js");
 require("./split.js");
 
 // Set up context menu
-require("./contextmenu.js");
+const ContextMenu = require("./contextmenu.js");
 
 const EditorView = require("./editorView.js").EditorView;
 const PlayerView = require("./playerView.js").PlayerView;
@@ -23,6 +23,7 @@ const NavView = require("./navView.js").NavView;
 const FlowView = require("./flowView.js").FlowView;
 const PlayPath = require("./playPath.js").PlayPath;
 const AssetsView = require("./assetsView.js").AssetsView;
+const VariablesView = require("./variablesView.js").VariablesView;
 const ExpressionWatchView = require("./expressionWatchView").ExpressionWatchView;
 const LiveCompiler = require("./liveCompiler.js").LiveCompiler;
 const InkProject = require("./inkProject.js").InkProject;
@@ -149,15 +150,22 @@ LiveCompiler.setEvents({
                     PlayerView.contentReady();
                 }
 
-                // While the Narrative Flow graph is showing, find which knots this turn's
-                // text came from (inklecate can only say while it's waiting, i.e. now)
+                // Ask inklecate what the open panels need while it's waiting (the only time it
+                // can answer): which knots this turn's text came from, for the Narrative Flow
+                // graph, then the variables' values
+                var updateVariables = () => {
+                    if( !replaying && VariablesView.isVisible() )
+                        VariablesView.refresh(doneCallback);
+                    else
+                        doneCallback();
+                };
                 if( FlowView.isGraphVisible() ) {
                     PlayPath.resolve(() => {
                         if( !replaying ) FlowView.playPathChanged();
-                        doneCallback();
+                        updateVariables();
                     });
                 } else {
-                    doneCallback();
+                    updateVariables();
                 }
                 return;
             }
@@ -172,6 +180,10 @@ LiveCompiler.setEvents({
         };
 
         tryEvaluateNextExpression();
+    },
+    commandSent: (entry) => {
+        PlayerView.addCommandNote(entry);
+        if( entry.type == 'divert' ) PlayPath.jumped();
     },
     replayComplete: (sessionId) => {
         PlayerView.replayComplete(sessionId);
@@ -298,10 +310,33 @@ ExpressionWatchView.setEvents({
     }
 });
 
+// "Play from here": the knot or stitch containing a position in the active ink file, as a
+// divert target, or null if it isn't in one (or it's a function, which can't be played)
+function playableFlowAt(pos) {
+    var inkFile = InkProject.currentProject && InkProject.currentProject.activeInkFile;
+    var symbols = inkFile && inkFile.symbols.flowAtPos(pos);
+    if( !symbols || !symbols.Knot || symbols.Knot.isfunc ) return null;
+    return symbols.Stitch ? `${symbols.Knot.name}.${symbols.Stitch.name}` : symbols.Knot.name;
+}
+
+function playFrom(target) {
+    if( target ) LiveCompiler.playFrom(target);
+    else LiveCompiler.rewind();
+}
+
+// Right-clicking in a knot offers to play from it
+ContextMenu.setContextMenuInfoProvider((e) => {
+    var pos = EditorView.positionAtScreenPoint(e.clientX, e.clientY);
+    return pos ? { playFrom: playableFlowAt(pos) } : {};
+});
+ipc.on("play-from", (event, target) => playFrom(target));
+ipc.on("play-from-cursor", () => playFrom(playableFlowAt(EditorView.getCurrentCursorPos())));
+
 ToolbarView.setEvents({
     toggleSidebar: (id, buttonId) => { NavView.toggle(id, buttonId); },
     toggleFlow: () => { try { require('./flowView.js').FlowView.toggle('.flow-toggle.button'); } catch(_) {} },
     toggleAssets: () => AssetsView.toggle('.assets-toggle.button'),
+    toggleVariables: () => VariablesView.toggle('.variables-toggle.button'),
     navigateBack: () => NavHistory.back(),
     navigateForward: () => NavHistory.forward(),
     selectIssue: gotoIssue,
@@ -387,6 +422,7 @@ AssetsView.setEvents({
 });
 
 ipc.on('toggle-assets-view', () => AssetsView.toggle('.assets-toggle.button'));
+ipc.on('toggle-variables-view', () => VariablesView.toggle('.variables-toggle.button'));
 
 // Files may have been added to images/ or audio/ in another app
 window.addEventListener('focus', () => AssetsView.requestRefresh());

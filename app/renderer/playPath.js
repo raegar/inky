@@ -32,6 +32,11 @@ function choiceOffered(number, text) {
     currentTurn().choices.push({ number, text });
 }
 
+// The story jumped to a knot ("Play from here"): a new turn, reached without a choice
+function jumped() {
+    turns.push({ offsets: [], choices: [], chosen: null });
+}
+
 function choiceMade(number) {
     const turn = currentTurn();
     const choice = turn.choices.find(c => c.number == number);
@@ -109,6 +114,7 @@ exports.PlayPath = {
     textAdded,
     choiceOffered,
     choiceMade,
+    jumped,
     summary,
     resolve
 };

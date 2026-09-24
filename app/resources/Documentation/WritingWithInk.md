@@ -55,6 +55,7 @@
     * [8) Format Advice](#8-format-advice)
     * [9) Example Recap](#9-example-recap)
   * [Part 9: Seeing Your Story's Shape](#part-9-seeing-your-storys-shape)
+  * [Part 10: Testing Your Story](#part-10-testing-your-story)
 </details>
 
 ## Introduction
@@ -3536,7 +3537,7 @@ Choose Media → Images → Insert Image…
 
 You can also drag image files from your desktop straight onto the editor: they're copied into `images/` and the tags are added where you drop them.
 
-**The Images and Audio panel** (the picture button in the toolbar, or View → Images and Audio…) shows everything in your `images/` and `audio/` folders. Click a picture to add it at the cursor, or drag it to where you want it in your story. For sounds, press ▶ to listen, then choose Effect (plays once) or Loop (keeps playing). Files that no tag uses yet are marked *unused*, and tags whose file can't be found are listed under *Missing*: click one to go to that line.
+**The Images and Audio panel** (the picture button in the toolbar, or Story → Images and Audio…) shows everything in your `images/` and `audio/` folders. Click a picture to add it at the cursor, or drag it to where you want it in your story. For sounds, press ▶ to listen, then choose Effect (plays once) or Loop (keeps playing). Files that no tag uses yet are marked *unused*, and tags whose file can't be found are listed under *Missing*: click one to go to that line.
 
 When typing a tag yourself, Inky suggests the files in your `images/` folder as soon as you've typed `# IMAGE `, so you don't have to remember exact file names.
 
@@ -3670,7 +3671,7 @@ Use `.mp3` or `.ogg` for loops/music. Use `.wav` for short effects. Keep file si
 
 # Part 9: Seeing Your Story's Shape
 
-The **Narrative Flow** panel (the crossed-arrows button in the toolbar, or View → Narrative Flow…) shows how the knots and stitches in your story connect. Choose **Graph** to see it as a map:
+The **Narrative Flow** panel (the crossed-arrows button in the toolbar, or Story → Narrative Flow…) shows how the knots and stitches in your story connect. Choose **Graph** to see it as a map:
 
 - Each box is a knot or stitch, and each arrow is a divert. Arrows from a choice are labelled with the choice's text.
 - **Start** is the top of your story. Follow the arrows down from it to see every route a player can take.
@@ -3682,3 +3683,32 @@ The **Narrative Flow** panel (the crossed-arrows button in the toolbar, or View 
 - A red box is a divert to a name that doesn't exist, usually a typo.
 
 Click any box to jump to it in the editor. Hold Ctrl (or Cmd) and use the mouse wheel over the graph to zoom.
+
+
+# Part 10: Testing Your Story
+
+Two tools help you try out parts of your story without playing all the way through each time.
+
+## Play from here
+
+Right-click inside a knot or stitch in the editor and choose **Play from "…"**, or put the cursor in one and choose Story → Play from Here (Ctrl+Shift+Enter, or Cmd+Shift+Enter on a Mac). The story restarts and jumps straight to that knot, so you can check a scene as you write it. The player shows where it jumped.
+
+## The Variables panel
+
+The Variables panel (the gauge button in the toolbar, or Story → Variables…) lists the story's variables (`VAR`, `CONST` and `LIST`) with their values in the current playthrough. They update as you play.
+
+You can also change them, to try a different route without setting it up by playing:
+
+- Tick or untick a true/false variable.
+- For numbers, text and lists, type a new value and press Enter. For a list, type its items separated by commas, e.g. `happy, calm`. Escape puts the old value back.
+- Constants can't be changed.
+
+Variables you change are marked with a dot and noted in the story (e.g. `✎ gold set to 20`). They stay changed, even when you edit the story or step back, until you press Restart. Play from here keeps them too, so you can, for example, give the player a key and then jump straight to the locked door:
+
+	VAR has_key = false
+
+	=== vault ===
+	{has_key: The vault opens!|The vault is locked.}
+	-> END
+
+Tick `has_key` in the Variables panel, then right-click in `vault` and choose Play from "vault".

@@ -94,6 +94,8 @@ h1.title {
   position: absolute;
   text-align: center;
   margin: 0;
+  /* Just a message, stretched across the toolbar: let clicks through to the buttons under it */
+  pointer-events: none;
 }
 
 #toolbar div.issuesSummary {
@@ -978,3 +980,32 @@ img.issue-icon.warning {
 #assets-wrapper .assetsMissing { display: block; font-size: 12px; padding: 3px 2px; color: #b5452a; text-decoration: none; }
 #assets-wrapper .assetsMissing:hover .assetsMissingName { text-decoration: underline; }
 #assets-wrapper .assetsMissingWhere { color: #999; font-size: 11px; }
+
+/* Notes in the story for jumps and variables set from outside it (playerView.addCommandNote) */
+#player p.commandNote {
+  color: #2a72b5;
+  text-align: center;
+  font-size: 0.85em;
+  font-family: monospace;
+}
+.window.dark #player p.commandNote,
+.window.contrast #player p.commandNote {
+  color: #8fd3ff;
+}
+
+/* Variables panel (variablesView.js) */
+#variables-wrapper:not(.hidden) { display: flex; flex-direction: column; }
+#variables-wrapper .variablesIntro { font-size: 11px; color: #888; margin: 0 10px 8px; line-height: 1.4; }
+#variables-wrapper .variablesBody { flex: 1 1 auto; overflow-y: auto; padding: 0 10px 12px; }
+#variables-wrapper .variablesEmpty { font-size: 12px; color: #888; line-height: 1.4; }
+#variables-wrapper .variablesTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+#variables-wrapper .variablesTable td { padding: 3px 2px; border-bottom: 1px solid rgba(0,0,0,0.06); vertical-align: middle; }
+#variables-wrapper .variableName { font-family: Monaco, Consolas, monospace; font-size: 11px; color: #444; white-space: nowrap; padding-right: 8px !important; }
+#variables-wrapper .variableValue { width: 100%; }
+#variables-wrapper .variableValue input[type=text] { width: 100%; box-sizing: border-box; font-family: Monaco, Consolas, monospace; font-size: 11px; padding: 2px 4px; border: 1px solid rgba(0,0,0,0.15); border-radius: 3px; background: transparent; color: inherit; }
+#variables-wrapper .variableValue input[type=text]:focus { border-color: #5aa9e6; outline: none; }
+#variables-wrapper .variableValue input.invalid { border-color: #e65a5a; background: rgba(230, 90, 90, 0.08); }
+#variables-wrapper .variableConst { font-family: Monaco, Consolas, monospace; font-size: 11px; color: #888; }
+#variables-wrapper .variableUnknown { color: #aaa; }
+/* Changed from the panel: marked with a dot before the name */
+#variables-wrapper tr.overridden .variableName::before { content: "\25CF "; color: #2a72b5; }
