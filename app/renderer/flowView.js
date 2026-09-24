@@ -163,41 +163,78 @@ function ensurePanel() {
   return $panel;
 }
 
-function collectBeats() {
+// Scans every ink file's tokens for knots, stitches and diverts. Flows are identified by
+// their full ink path ("knot" or "knot.stitch"), since stitch names are only unique
+// within their knot.
+function scanProject() {
   const project = InkProject.currentProject;
-  if (!project) return [];
-  const beats = [];
-  const files = project.files || [];
+  const flows = [];                  // { id, name, type: 'Knot'|'Stitch', file, row }
+  const diverts = [];                // { from, target, knot, file, row }
+  const labels = new Map();          // "knot.label" / "knot.stitch.label" -> owning flow id
+  const variables = new Set();       // names that can hold a divert target (VAR, temp, parameters)
+  if (!project) return { flows, diverts, labels, variables };
+
   const TokenIterator = ace.require('ace/token_iterator').TokenIterator;
 
-  function push(type, name, file, row) {
-    beats.push({ type, name, file, row });
-  }
-
-  files.forEach(f => {
+  (project.files || []).forEach(f => {
     try {
       const session = f.getAceSession();
       const it = new TokenIterator(session, 0, 0);
       if (it.getCurrentToken() === undefined) it.stepForward();
-      const flowTypes = [
-        { name: 'knot', code: '.knot.declaration', level: 1 },
-        { name: 'stitch', code: '.stitch.declaration', level: 2 }
-      ];
-      let lastFlow = null;
+      let knot = null, stitch = null, current = null, prevType = null;
+
+      const addParameters = (row) => {
+        const params = /\(([^)]*)\)/.exec(session.getLine(row));
+        if (!params) return;
+        params[1].split(',').forEach(p => {
+          const name = p.replace(/->|\bref\b/g, '').trim();
+          if (name) variables.add(name);
+        });
+      };
+
       for (let tok = it.getCurrentToken(); tok; tok = it.stepForward()) {
-        if (tok.type && tok.type.indexOf('.name') !== -1) {
-          const t = flowTypes.find(ft => tok.type.indexOf(ft.code) !== -1);
-          if (t) {
-            push(t.name, tok.value, f, it.getCurrentTokenRow());
-            lastFlow = tok.value;
-          }
-        } else if (tok.type === 'divert.target' && tok.value) {
-          // a divert beat (optional label uses source→target)
-          push('divert', `${lastFlow || ''}→${tok.value.trim()}`, f, it.getCurrentTokenRow());
+        const type = tok.type || '';
+        const row = it.getCurrentTokenRow();
+
+        if (type.indexOf('.knot.declaration') !== -1 && type.indexOf('.name') !== -1) {
+          knot = tok.value; stitch = null;
+          current = { id: knot, name: knot, type: 'Knot', file: f, row };
+          flows.push(current);
+          addParameters(row);
         }
+        else if (type.indexOf('.stitch.declaration') !== -1 && type.indexOf('.name') !== -1) {
+          stitch = tok.value;
+          current = { id: knot ? `${knot}.${stitch}` : stitch, name: stitch, type: 'Stitch', file: f, row };
+          flows.push(current);
+          addParameters(row);
+        }
+        else if (/\.label\.name$/.test(type) && current) {
+          if (knot) labels.set(`${knot}.${tok.value}`, current.id);
+          if (knot && stitch) labels.set(`${knot}.${stitch}.${tok.value}`, current.id);
+          if (!labels.has(tok.value)) labels.set(tok.value, current.id);
+        }
+        else if (type === 'var-decl.name' && prevType === 'var-decl.keyword') {
+          variables.add(tok.value);
+        }
+        else if (type.indexOf('logic') === 0) {
+          const temp = /\btemp\s+([A-Za-z_]\w*)/.exec(tok.value);
+          if (temp) variables.add(temp[1]);
+        }
+        else if (type === 'divert.target' && tok.value && current) {
+          diverts.push({ from: current.id, target: tok.value.trim(), knot, file: f, row });
+        }
+        if (tok.value.trim()) prevType = type;
       }
-    } catch (_) {}
+    } catch (e) { console.error('FlowView.scanProject', e); }
   });
+  return { flows, diverts, labels, variables };
+}
+
+function collectBeats() {
+  const { flows, diverts } = scanProject();
+  const beats = [];
+  flows.forEach(fl => beats.push({ type: fl.type.toLowerCase(), name: fl.name, file: fl.file, row: fl.row }));
+  diverts.forEach(d => beats.push({ type: 'divert', name: `${d.from}→${d.target}`, file: d.file, row: d.row }));
 
   // stable sort: by file then row
   beats.sort((a,b) => {
@@ -218,7 +255,9 @@ function populateList($panel) {
     if (filterText && !(b.name && b.name.toLowerCase().includes(filterText))) return;
     const fileLabel = b.file ? b.file.relativePath() : '';
     // Keep file path as a tooltip only to reduce visual clutter
-    const $li = $(`<li class="flowRow"><div class="flowItem"><span class="type">${b.type}</span> <a href="#" title="${fileLabel}">${b.name || '(untitled)'} </a></div></li>`);
+    const $li = $(`<li class="flowRow"><div class="flowItem"><span class="type"></span> <a href="#"></a></div></li>`);
+    $li.find('.type').text(b.type);
+    $li.find('a').text(b.name || '(untitled)').attr('title', fileLabel);
     $li.find('a').on('click', (e) => {
       e.preventDefault();
       if (b.file) { InkProject.currentProject.showInkFile(b.file); EditorView.gotoLine((b.row||0)+1); }
@@ -228,99 +267,44 @@ function populateList($panel) {
 }
 
 function computeGraph() {
-  const project = InkProject.currentProject;
-  if (!project) return { nodes: [], edges: [] };
-  const TokenIterator = ace.require('ace/token_iterator').TokenIterator;
+  const { flows, diverts, labels, variables } = scanProject();
   const nodesById = new Map();
-  const nodesByName = new Map();
-  const edges = [];
-  const edgeSet = new Set();
-  const SINK_TARGETS = new Set(['DONE','END']);
-  const makeId = (file, name) => `${file ? file.relativePath() : '?'}::${name}`;
-  const ensure = (file, name, type, row) => {
-    const id = makeId(file, name);
-    if (!nodesById.has(id)) nodesById.set(id, { id, name, type, file, row: row||0 });
-    nodesByName.set(name, nodesById.get(id));
-    return nodesById.get(id);
+  flows.forEach(fl => { if (!nodesById.has(fl.id)) nodesById.set(fl.id, fl); });
+
+  // Finds the flow a divert leads to. Returns its id, null for a divert target chosen
+  // at runtime (a variable), or undefined if nothing matches.
+  const resolveTarget = (target, knot) => {
+    if (knot && nodesById.has(`${knot}.${target}`)) return `${knot}.${target}`;          // stitch in the same knot
+    if (nodesById.has(target)) return target;                                            // knot, or knot.stitch
+    if (knot && labels.has(`${knot}.${target}`)) return labels.get(`${knot}.${target}`); // label in the same knot
+    if (labels.has(target)) return labels.get(target);                                  // knot.label, knot.stitch.label
+    if (variables.has(target)) return null;
+    return undefined;
   };
 
-  (project.files || []).forEach(f => {
-    try {
-      const session = f.getAceSession();
-      const it = new TokenIterator(session, 0, 0);
-      if (it.getCurrentToken() === undefined) it.stepForward();
-      const flowTypes = [
-        { name: 'Knot', code: '.knot.declaration', level: 1 },
-        { name: 'Stitch', code: '.stitch.declaration', level: 2 }
-      ];
-      const stack = [];
-      const top = () => (stack.length ? stack[stack.length-1] : null);
-      for (let tok = it.getCurrentToken(); tok; tok = it.stepForward()) {
-        if (tok.type && tok.type.indexOf('.name') !== -1) {
-          const t = flowTypes.find(ft => tok.type.indexOf(ft.code) !== -1);
-          if (t) {
-            while (top() && t.level <= top().level) stack.pop();
-            const sym = { level:t.level, type:t.name, name:tok.value, row:it.getCurrentTokenRow(), file:f };
-            stack.push(sym);
-            ensure(f, sym.name, sym.type, sym.row);
-            continue;
-          }
-        }
-        if (tok.type === 'divert.target' && tok.value) {
-          const src = top();
-          if (src) {
-            const target = tok.value.trim();
-            if (SINK_TARGETS.has(target)) continue;
-            const from = ensure(src.file, src.name, src.type, src.row);
-            const key = `${from.id}->${target}`;
-            if (!edgeSet.has(key)) { edgeSet.add(key); edges.push({ from: from.id, toName: target }); }
-          }
-        }
-      }
-    } catch(_){}
+  const edges = [];
+  const edgeSet = new Set();
+  diverts.forEach(d => {
+    let to = resolveTarget(d.target, d.knot);
+    if (to === null) return;
+    if (to === undefined) {
+      // Doesn't exist (the compiler reports it too): show it as a red node
+      to = `?${d.target}`;
+      if (!nodesById.has(to)) nodesById.set(to, { id: to, name: d.target, type: 'Unresolved', file: null, row: 0 });
+    }
+    if (to === d.from) return;
+    const key = `${d.from}->${to}`;
+    if (!edgeSet.has(key)) { edgeSet.add(key); edges.push({ from: d.from, to }); }
   });
 
-  // Secondary robust pass: regex scan for '-> target' and use symbols.flowAtPos to find source
-  (project.files || []).forEach(f => {
-    try {
-      if (!f || !f.symbols || !f.getAceSession) return;
-      const session = f.getAceSession();
-      const lineCount = session.getLength();
-      const re = /\-\>\s*([A-Za-z0-9_\.]+)/g;
-      for (let row = 0; row < lineCount; row++) {
-        const text = session.getLine(row);
-        re.lastIndex = 0;
-        let m;
-        while ((m = re.exec(text)) !== null) {
-          const target = m[1];
-          if (SINK_TARGETS.has(target)) continue;
-          // Identify the owning flow at this row
-          let owner = null;
-          try {
-            const syms = f.symbols.flowAtPos({ row, column: 0 });
-            if (syms) {
-              if (syms.Stitch) owner = syms.Stitch;
-              else if (syms.Knot) owner = syms.Knot;
-            }
-          } catch(_) {}
-          if (owner) {
-            const from = ensure(owner.inkFile, owner.name, owner.flowType.name, owner.row);
-            const key = `${from.id}->${target}`;
-            if (!edgeSet.has(key)) { edgeSet.add(key); edges.push({ from: from.id, toName: target }); }
-          }
-        }
-      }
-    } catch(_){}
-  });
-  edges.forEach(e => {
-    if (SINK_TARGETS.has(e.toName)) { e.to = null; return; }
-    const dest = nodesByName.get(e.toName);
-    e.to = dest ? dest.id : ensure(null, e.toName, 'Unresolved', 0).id;
-  });
-  // Drop any edges with no resolved destination (e.g. DONE/END sinks)
-  for (let i = edges.length - 1; i >= 0; i--) { if (!edges[i].to) edges.splice(i,1); }
+  // In file and line order, with unresolved targets (which have no file) at the end
   const nodes = Array.from(nodesById.values());
-  nodes.sort((a,b)=>{ const fa=a.file? a.file.relativePath():'~'; const fb=b.file? b.file.relativePath():'~'; if(fa!==fb) return fa.localeCompare(fb); return a.row-b.row; });
+  nodes.sort((a,b) => {
+    if (!a.file || !b.file) return (a.file ? 0 : 1) - (b.file ? 0 : 1);
+    const fa = a.file.relativePath(), fb = b.file.relativePath();
+    if (fa !== fb) return fa.localeCompare(fb);
+    return a.row - b.row;
+  });
   return { nodes, edges };
 }
 
@@ -385,6 +369,8 @@ function renderGraph($svg) {
     const midX = (x1+x2)/2;
     const path = document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('class','edge');
+    path.setAttribute('data-from', e.from);
+    path.setAttribute('data-to', e.to);
     path.setAttribute('d', `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`);
     viewport.appendChild(path);
   });
@@ -398,8 +384,13 @@ function renderGraph($svg) {
     rect.setAttribute('rx','4'); rect.setAttribute('ry','4'); rect.setAttribute('width',`${nodeW}`); rect.setAttribute('height',`${nodeH}`);
     rect.setAttribute('class', `node ${n.type==='Unresolved' ? 'unresolved' : ''}`);
     const text = document.createElementNS('http://www.w3.org/2000/svg','text');
-    text.setAttribute('x','6'); text.setAttribute('y',`${nodeH/2+4}`); text.setAttribute('class','label'); text.textContent = n.name;
-    g.appendChild(rect); g.appendChild(text); viewport.appendChild(g);
+    // Stitches show their knot too, since stitch names repeat across knots
+    const label = n.type === 'Stitch' ? n.id : n.name;
+    text.setAttribute('x','6'); text.setAttribute('y',`${nodeH/2+4}`); text.setAttribute('class','label');
+    text.textContent = label.length > 20 ? label.slice(0, 19) + '…' : label;
+    const title = document.createElementNS('http://www.w3.org/2000/svg','title');
+    title.textContent = n.type === 'Unresolved' ? `${label} (not found)` : label;
+    g.appendChild(title); g.appendChild(rect); g.appendChild(text); viewport.appendChild(g);
     g.addEventListener('click',()=>{ if(n.file){ try{ InkProject.currentProject.showInkFile(n.file); EditorView.gotoLine((n.row||0)+1);}catch(_){}} });
   });
 
