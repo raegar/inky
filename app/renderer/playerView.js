@@ -1,63 +1,23 @@
 const $ = window.jQuery = require('./jquery-2.2.3.min.js');
 const i18n = require('./i18n.js');
 const path = require("path");
-const url = require('url'); // Add this at the top
+const fs = require("fs");
+const url = require('url');
+const InkMedia = require('../export-for-web-template/inkMedia.js');
 
 var events = {};
 var lastFadeTime = 0;
 var $textBuffer = null;
 var instructionPrefix = null;
 var animationEnabled = true;
-let _oneShotPool = [];   // holds all current single-shot SFX
-let _audioLoopEl  = null; // still just one looping track
 let audioControlsVisible = true; // global toggle for <audio> controls
-let audioMuted = false; // global mute
 
-// Fade an HTMLAudioElement's volume to 0 over durationMs, then pause and optionally remove
-function _fadeOutAndStopAudio(el, durationMs = 500, removeFromDom = true) {
-    try {
-        if (!el) return Promise.resolve();
-        // If already paused or silent, just stop/remove immediately
-        if (el.paused || el.volume === 0) {
-            try { el.pause(); } catch(_){}
-            try { if (removeFromDom) el.remove(); } catch(_){}
-            return Promise.resolve();
-        }
-
-        const steps = Math.max(1, Math.floor(durationMs / 50));
-        const stepAmount = el.volume / steps;
-        return new Promise(resolve => {
-            let count = 0;
-            const id = setInterval(() => {
-                try {
-                    el.volume = Math.max(0, el.volume - stepAmount);
-                    count++;
-                    if (count >= steps || el.volume <= 0) {
-                        clearInterval(id);
-                        try { el.pause(); } catch(_){}
-                        try { if (removeFromDom) el.remove(); } catch(_){}
-                        // Reset volume back to 1 in case the element is reused (loop element)
-                        try { el.volume = 1; } catch(_){}
-                        resolve();
-                    }
-                } catch(_) {
-                    clearInterval(id);
-                    try { el.pause(); } catch(_2){}
-                    try { if (removeFromDom) el.remove(); } catch(_3){}
-                    resolve();
-                }
-            }, 50);
-        });
-    } catch(_) {
-        try { el.pause(); } catch(_2){}
-        try { if (removeFromDom) el.remove(); } catch(_3){}
-        return Promise.resolve();
+const audioPlayer = new InkMedia.AudioPlayer({
+    onCreate: (el) => {
+        el.controls = audioControlsVisible;
+        el.className = 'storyAudio';
     }
-}
-
-
-
-
+});
 
 document.addEventListener("keyup", function(){
     $("#player").removeClass("altKey");
@@ -155,12 +115,8 @@ function contentReady() {
 }
 
 function prepareForNewPlaythrough(sessionId) {
-    // stop and clear all one-shot sounds
-    _oneShotPool.forEach(a => { try { a.pause(); } catch(_){} });
-    _oneShotPool = [];
-
-    // stop and clear loop
-    if (_audioLoopEl) { _audioLoopEl.pause(); _audioLoopEl.src = ""; _audioLoopEl = null; }
+    audioPlayer.stopAllNow();
+    _mediaDirCache = {};
 
     $textBuffer = $("#player .hiddenBuffer .innerText");
     $textBuffer.data("sessionId", sessionId);
@@ -243,268 +199,112 @@ function _projectDir() {
     return (mainInk && mainInk.projectDir) || null;
 }
 
-function _splitPropertyTagFlexible(tag) {
-    // Accept both "KEY value" and "KEY: value"
-    if (!tag || typeof tag !== "string") return null;
-    const trimmed = tag.trim();
-    const colonIdx = trimmed.indexOf(":");
-    if (colonIdx > -1) {
-        return {
-            property: trimmed.substring(0, colonIdx).trim().toUpperCase(),
-            val: trimmed.substring(colonIdx + 1).trim()
-        };
-    } else {
-        const firstSpace = trimmed.indexOf(" ");
-        if (firstSpace > -1) {
-            return {
-                property: trimmed.substring(0, firstSpace).trim().toUpperCase(),
-                val: trimmed.substring(firstSpace + 1).trim()
-            };
-        }
+// Directory listings, cached for the current playthrough so that replaying a long
+// story doesn't hit the disk for every tag. Cleared on each new playthrough.
+let _mediaDirCache = {};
+
+function _listDir(dir) {
+    if (!(dir in _mediaDirCache)) {
+        try { _mediaDirCache[dir] = fs.readdirSync(dir); } catch(_) { _mediaDirCache[dir] = null; }
     }
-    return null;
+    return _mediaDirCache[dir];
 }
 
+// Looks for relPath under root, matching each folder/file name case-insensitively.
+// Returns the path with its real capitalisation (and whether it matched exactly), or null.
+function _findFile(root, relPath) {
+    let dir = root;
+    const actual = [];
+    for (const part of relPath.split('/')) {
+        const entries = _listDir(dir);
+        if (!entries) return null;
+        const found = entries.includes(part) ? part : entries.find(e => e.toLowerCase() === part.toLowerCase());
+        if (!found) return null;
+        actual.push(found);
+        dir = path.join(dir, found);
+    }
+    return { path: actual.join('/'), exact: actual.join('/') === relPath };
+}
+
+// Finds the file for a media tag. Returns { url } or { error } with a message for the writer.
+function _resolveMedia(property, val) {
+    const kind = property === 'IMAGE' || property === 'BACKGROUND' ? 'Image' : 'Audio';
+    const projectDir = _projectDir();
+    if (!projectDir) {
+        return { error: `Save your project to use images and audio (${val})` };
+    }
+
+    const exact = InkMedia.resolve(property, val, p => { const f = _findFile(projectDir, p); return f && f.exact; });
+    if (exact) {
+        return { url: url.pathToFileURL(path.join(projectDir, exact)).href };
+    }
+
+    // Windows and macOS ignore capitalisation but web hosts don't, so a game that works
+    // here would break once exported. Treat it as missing and say what's wrong.
+    const loose = InkMedia.resolve(property, val, p => !!_findFile(projectDir, p));
+    if (loose) {
+        // Suggest the name as they'd write it in the tag (i.e. without the folder, if they left it off)
+        const actual = _findFile(projectDir, loose).path;
+        const suggestion = actual.split('/').slice(-val.split('/').length).join('/');
+        return { error: `${kind} not found: ${val} - did you mean ${suggestion}? Capital letters matter once your game is on the web` };
+    }
+
+    return { error: `${kind} not found: ${val} (put it in the ${InkMedia.folderFor(property)}/ folder)` };
+}
 
 function addTags(tags)
 {
     if (!tags || !Array.isArray(tags) || tags.length === 0) return;
 
-    const fs = require('fs');
-
     // Collect any tags we don't explicitly handle so we can show them as text.
     const remaining = [];
-    let handledSomething = false;
 
-    // Helper: append-and-fade convenience
     const appendAndMaybeFade = ($el) => {
         $textBuffer.append($el);
         if (animationEnabled && shouldAnimate()) fadeIn($el);
     };
+    const appendError = (message) => appendAndMaybeFade($("<p class='error'></p>").text(message));
 
-    // Iterate every tag on the line; handle all that we recognise
     for (const rawTag of tags) {
-        const s = _splitPropertyTagFlexible(rawTag);
-        if (!s) { remaining.push(rawTag); continue; }
+        const tag = InkMedia.parseTag(rawTag);
+        if (!tag) { remaining.push(rawTag); continue; }
 
-        switch (s.property) {
+        if (tag.property === 'AUDIOSTOP') {
+            audioPlayer.stop(tag.val);
+            continue;
+        }
 
-            case "IMAGE": {
-                if (!s.val) { remaining.push(rawTag); break; }
-                const projectDir = _projectDir();
-                if (!projectDir) {
-                    appendAndMaybeFade($("<p class='error'></p>").text(`Save your project to see images (${s.val})`));
-                    handledSomething = true;
-                    break;
-                }
+        if (!InkMedia.isMediaProperty(tag.property) || tag.property === 'BACKGROUND' || !tag.val) {
+            remaining.push(rawTag);
+            continue;
+        }
 
-                const imgAbsPath = path.join(projectDir, 'images', s.val);
-                const fileUrl = url.pathToFileURL(imgAbsPath).href;
+        const media = _resolveMedia(tag.property, tag.val);
+        if (media.error) {
+            appendError(media.error);
+            continue;
+        }
 
-                const $img = $(`<img class='storyImage' src='${fileUrl}' alt='${s.val}'/>`);
-                $img.on('error', () => {
-                    appendAndMaybeFade($(`<p class='error'>Image not found: ${s.val}</p>`));
-                    try { $img.remove(); } catch(_) {}
-                });
-                appendAndMaybeFade($img);
-                handledSomething = true;
-                break;
-            }
-
-            case "AUDIO": {
-                if (!s.val) { remaining.push(rawTag); break; }
-                const projectDir = _projectDir();
-                if (!projectDir) {
-                    appendAndMaybeFade($("<p class='error'></p>").text(`Save your project to hear audio (${s.val})`));
-                    handledSomething = true;
-                    break;
-                }
-
-                /* 1. Resolve filename (adds .wav/.mp3/.ogg if omitted) */
-                const hasExt = /\.[a-z0-9]+$/i.test(s.val.trim());
-                const names = hasExt
-                    ? [s.val.trim()]
-                    : [s.val.trim(), s.val.trim()+'.wav', s.val.trim()+'.mp3', s.val.trim()+'.ogg'];
-
-                const candidates = [];
-                for (const name of names) {
-                    candidates.push(path.join(projectDir, 'audio', name));
-                    candidates.push(path.join(projectDir, 'images', name)); // legacy
-                }
-
-                const audioAbsPath = candidates.find(p => fs.existsSync(p));
-                if (!audioAbsPath) {
-                    appendAndMaybeFade($(`<p class='error'>AUDIO not found: ${s.val}</p>`));
-                    console.warn('[Inky AUDIO] tried:', candidates);
-                    handledSomething = true;
-                    break;
-                }
-
-                const audioUrl = url.pathToFileURL(audioAbsPath).href;
-
-                /* 2. Create a fresh <audio> element */
-                const el = document.createElement('audio');
-                el.src      = audioUrl;
-                el.controls = audioControlsVisible;
-                el.muted    = audioMuted;
-                el.preload  = 'auto';
-
-                // Start only when buffered ⇒ avoids 0:00/0:00 race
-                el.addEventListener('canplaythrough', () => {
-                    el.play().catch(()=>{});
-                }, { once:true });
-
-                // Remove from pool & DOM when finished
-                el.addEventListener('ended', () => {
-                    try { el.remove(); } catch(_) {}
-                    _oneShotPool = _oneShotPool.filter(a => a !== el);
-                });
-
-                /* 3. Track and display it */
-                _oneShotPool.push(el);
-                appendAndMaybeFade($(el).css({ display:'block', margin:'0.5em 0' }));
-
-                handledSomething = true;
-                break;
-            }
-
-
-            /* ----------  AUDIOLOOP (background loop)  ---------- */
-            case "AUDIOLOOP": {
-                if (!s.val) { remaining.push(rawTag); break; }
-                const projectDir = _projectDir();
-                if (!projectDir) {
-                    appendAndMaybeFade($("<p class='error'></p>").text(`Save your project to hear audio (${s.val})`));
-                    handledSomething = true;
-                    break;
-                }
-
-                const hasExt = /\.[a-z0-9]+$/i.test(s.val.trim());
-                const names = hasExt
-                    ? [s.val.trim()]
-                    : [s.val.trim()+'.mp3', s.val.trim()+'.ogg', s.val.trim()+'.wav']; // prefer streaming formats first
-
-                const candidates = [];
-                for (const name of names) {
-                    candidates.push(path.join(projectDir, 'audio', name));
-                    candidates.push(path.join(projectDir, 'images', name));
-                }
-
-                let loopAbsPath = candidates.find(p => fs.existsSync(p));
-                if (!loopAbsPath) {
-                    appendAndMaybeFade($(`<p class='error'>AUDIOLOOP not found: ${s.val}</p>`));
-                    console.warn('[Inky AUDIOLOOP] tried:', candidates);
-                    handledSomething = true;
-                    break;
-                }
-
-                const loopUrl = url.pathToFileURL(loopAbsPath).href;
-                console.log('[Inky AUDIOLOOP] resolved ->', loopUrl);
-
-                // stop previous loop
-                if (_audioLoopEl) { _audioLoopEl.pause(); _audioLoopEl.src=''; _audioLoopEl=null; }
-
-                _audioLoopEl = document.createElement('audio');
-                _audioLoopEl.src      = loopUrl;
-                _audioLoopEl.loop     = true;
-                _audioLoopEl.controls = audioControlsVisible;
-                _audioLoopEl.muted    = audioMuted;
-                _audioLoopEl.preload  = 'auto';
-
-                // Start when ready
-                _audioLoopEl.addEventListener('canplaythrough', () => {
-                    _audioLoopEl.play().catch(()=>{});
-                }, { once: true });
-
-                // Extra safety: ensure looping continues even if the 'loop' flag fails in some environments
-                _audioLoopEl.addEventListener('ended', () => {
-                    try {
-                        if (_audioLoopEl) {
-                            _audioLoopEl.currentTime = 0;
-                            _audioLoopEl.play().catch(()=>{});
-                        }
-                    } catch(_) {}
-                });
-
-                const $audioLoop = $(_audioLoopEl).css({ display:'block', margin:'0.5em 0' });
-                appendAndMaybeFade($audioLoop);
-                handledSomething = true;
-                break;
-            }
-
-            /* ----------  AUDIOSTOP  ---------- */
-            case "AUDIOSTOP": {
-                // Accept forms:
-                //   # AUDIOSTOP          → stop loop + all one-shots
-                //   # AUDIOSTOP: loop    → stop loop only
-                //   # AUDIOSTOP: once    → stop all one-shots only
-                const arg = (s.val || "").trim().toLowerCase();
-
-                // New behavior: fade and stop audio gracefully
-                const doLoop = (!arg || arg === "loop");
-                const doOnce = (!arg || arg === "once");
-
-                // Capture references to avoid affecting newer audio started later in the same turn
-                const loopToStop = doLoop ? _audioLoopEl : null;
-                const oneShotsToStop = doOnce ? _oneShotPool.slice() : [];
-
-                const fades = [];
-                if (loopToStop) {
-                    fades.push(_fadeOutAndStopAudio(loopToStop, 500));
-                }
-                if (oneShotsToStop.length > 0) {
-                    for (const el of oneShotsToStop) fades.push(_fadeOutAndStopAudio(el, 500));
-                }
-
-                Promise.allSettled(fades).finally(() => {
-                    if (loopToStop && _audioLoopEl === loopToStop) {
-                        try { _audioLoopEl.src = ""; } catch(_){}
-                        _audioLoopEl = null;
-                    }
-                    if (doOnce) {
-                        _oneShotPool = _oneShotPool.filter(a => oneShotsToStop.indexOf(a) === -1);
-                    }
-                });
-
-                handledSomething = true;
-                break;
-
-                // stop loop?
-                if (!arg || arg === "loop") {
-                    if (_audioLoopEl) {
-                        _audioLoopEl.pause();
-                        _audioLoopEl.src = "";
-                        try { _audioLoopEl.remove(); } catch(_) {}
-                        _audioLoopEl = null;
-                    }
-                }
-
-                // stop single-shot pool?
-                if (!arg || arg === "once") {
-                    _oneShotPool.forEach(a => { try { a.pause(); a.remove(); } catch(_){} });
-                    _oneShotPool = [];
-                }
-
-                handledSomething = true;
-                break;
-            }
-
-
-            default:
-                remaining.push(rawTag);
-                break;
+        if (tag.property === 'IMAGE') {
+            const $img = $("<img class='storyImage'/>").attr({ src: media.url, alt: tag.val });
+            // Exists but can't be displayed (e.g. corrupt, or not an image)
+            $img.on('error', () => {
+                $img.replaceWith($("<p class='error'></p>").text(`Image couldn't be displayed: ${tag.val}`));
+            });
+            appendAndMaybeFade($img);
+        }
+        else if (tag.property === 'AUDIO') {
+            appendAndMaybeFade($(audioPlayer.playOnce(media.url)));
+        }
+        else if (tag.property === 'AUDIOLOOP') {
+            appendAndMaybeFade($(audioPlayer.playLoop(media.url)));
         }
     }
 
-    // Show any unhandled tags as plain text (keeps your previous behaviour)
+    // Show any unhandled tags as plain text
     if (remaining.length > 0) {
-        const tagsStr = remaining.join(", ");
-        const $tags = $(`<p class='tags'># ${tagsStr}</p>`);
-        appendAndMaybeFade($tags);
+        appendAndMaybeFade($("<p class='tags'></p>").text("# " + remaining.join(", ")));
     }
-
-    // If we handled something (image/audio), we’re done.
-    if (handledSomething) return;
 }
 
 
@@ -646,16 +446,7 @@ exports.PlayerView = {
     setCurrentInkFile: setCurrentInkFile,
     setAudioControlsVisible: (visible) => {
         audioControlsVisible = !!visible;
-        try {
-            const nodes = document.querySelectorAll('#player audio');
-            nodes.forEach(n => { n.controls = audioControlsVisible; });
-        } catch(_) {}
+        document.querySelectorAll('#player audio').forEach(n => { n.controls = audioControlsVisible; });
     },
-    setAudioMuted: (muted) => {
-        audioMuted = !!muted;
-        try {
-            const nodes = document.querySelectorAll('#player audio');
-            nodes.forEach(n => { n.muted = audioMuted; });
-        } catch(_) {}
-    }
+    setAudioMuted: (muted) => audioPlayer.setMuted(muted)
 };

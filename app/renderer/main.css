@@ -938,3 +938,9 @@ img.issue-icon.warning {
   box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
+
+/* Story audio: only takes up space when its controls are shown (Media > Audio) */
+.storyAudio[controls] {
+  display: block;
+  margin: 0.5em 0;
+}
