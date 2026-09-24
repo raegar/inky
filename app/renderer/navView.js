@@ -398,10 +398,15 @@ function toggle(id, buttonId){
     var $button = $("#toolbar " + buttonId);
     var $thisPanel = $(id);
 
-    // Work with any number of nav panels (file, knot, flow, ...)
+    // Work with any number of nav panels (file, knot, flow, ...).
+    // While the sidebar is hidden no panel counts as showing, whatever its class says
+    // (e.g. if a panel was un-hidden before the sidebar could be shown).
+    if (!visible) $(".nav-wrapper").not(id).addClass("hidden");
     var totalPanels = $(".nav-wrapper").length;
     var columns =  totalPanels - $(".nav-wrapper.hidden").length;
-    if (columns > 0 && !$sidebarSplit.is(':animated'))
+
+    // Remember the width the user dragged the sidebar to, but never a hidden sidebar's 0
+    if (visible && columns > 0 && !$sidebarSplit.is(':animated') && $sidebarSplit.position().left > 0)
         sidebarWidth =  $sidebarSplit.position().left / columns; 
 
     
@@ -416,7 +421,8 @@ function toggle(id, buttonId){
         // If turning on File or Knot browser, collapse Narrative Flow panel to avoid cramped layout
         if (id !== "#flow-wrapper") {
             var $flow = $("#flow-wrapper");
-            if (!$flow.hasClass("hidden")) {
+            // The flow panel is only created when first used
+            if ($flow.length && !$flow.hasClass("hidden")) {
                 $flow.addClass("hidden");
                 // Adjust columns since we just hid Flow
                 columns--;
@@ -427,6 +433,12 @@ function toggle(id, buttonId){
             // If turning on Flow, collapse File and Knot browsers for clarity and width
             var $file = $("#file-nav-wrapper");
             var $knot = $("#knot-stitch-wrapper");
+            var $assets = $("#assets-wrapper");
+            if ($assets.length && !$assets.hasClass("hidden")) {
+                $assets.addClass("hidden");
+                columns--;
+                $("#toolbar .assets-toggle.button").removeClass("selected");
+            }
             if (!$file.hasClass("hidden")) {
                 $file.addClass("hidden");
                 columns--;
@@ -475,7 +487,7 @@ exports.NavView = {
     setEvents: e => events = e,
     hide: hideSidebar,
     show: showSidebar,
-    initialShow: () => { if( !hasBeenShown ) 
+    initialShow: () => { if( !hasBeenShown )
         toggle("#file-nav-wrapper");
     },
     toggle: toggle,

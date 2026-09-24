@@ -945,3 +945,36 @@ img.issue-icon.warning {
   display: block;
   margin: 0.5em 0;
 }
+
+/* Assets panel (assetsView.js) */
+#assets-wrapper:not(.hidden) { display: flex; flex-direction: column; }
+#assets-wrapper .assetsBody { flex: 1 1 auto; overflow-y: auto; padding: 0 10px 12px; }
+#assets-wrapper .assetsSection { margin-bottom: 14px; }
+#assets-wrapper .assetsSectionTitle {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: 10px 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #777;
+}
+#assets-wrapper .assetsFolderLink { font-weight: normal; text-transform: none; letter-spacing: 0; color: #2a72b5; text-decoration: none; }
+#assets-wrapper .assetsFolderLink:hover { text-decoration: underline; }
+#assets-wrapper .assetsEmpty { font-size: 12px; color: #888; margin: 4px 0 8px; line-height: 1.4; }
+
+#assets-wrapper .assetsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+#assets-wrapper .assetsImage { cursor: pointer; border-radius: 4px; padding: 4px; }
+#assets-wrapper .assetsImage:hover { background: rgba(90, 169, 230, 0.15); }
+#assets-wrapper .assetsThumb { height: 68px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.05); border-radius: 3px; overflow: hidden; }
+#assets-wrapper .assetsThumb img { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; }
+#assets-wrapper .assetsName { font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #444; }
+
+/* Play button on the left; the name, then the add buttons, stacked beside it */
+#assets-wrapper .assetsAudio { display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; row-gap: 3px; align-items: center; padding: 5px 2px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+#assets-wrapper .assetsAudio .assetsName { margin: 0; font-size: 12px; }
+#assets-wrapper .assetsPlay { grid-row: 1 / span 2; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; color: #2a72b5; background: rgba(90, 169, 230, 0.12); text-decoration: none; }
+#assets-wrapper .assetsPlay.playing { color: #fff; background: #2a72b5; }
+#assets-wrapper .assetsAdd { grid-column: 2; display: flex; gap: 4px; }
+#assets-wrapper .assetsAddButton { font-size: 11px; padding: 1px 6px; border: 1px solid rgba(0,0,0,0.15); border-radius: 3px; color: #444; text-decoration: none; cursor: pointer; }
+#assets-wrapper .assetsAddButton:hover { border-color: #5aa9e6; color: #2a72b5; }
+
+#assets-wrapper .assetsUnused { margin-left: 5px; font-size: 9px; text-transform: uppercase; color: #a07a1f; background: rgba(230, 180, 60, 0.18); padding: 0 4px; border-radius: 3px; vertical-align: 1px; }
+#assets-wrapper .assetsMissing { display: block; font-size: 12px; padding: 3px 2px; color: #b5452a; text-decoration: none; }
+#assets-wrapper .assetsMissing:hover .assetsMissingName { text-decoration: underline; }
+#assets-wrapper .assetsMissingWhere { color: #999; font-size: 11px; }

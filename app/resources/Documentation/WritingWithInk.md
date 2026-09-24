@@ -3535,6 +3535,8 @@ Choose Media → Images → Insert Image…
 
 You can also drag image files from your desktop straight onto the editor: they're copied into `images/` and the tags are added where you drop them.
 
+**The Images and Audio panel** (the picture button in the toolbar, or View → Images and Audio…) shows everything in your `images/` and `audio/` folders. Click a picture to add it at the cursor, or drag it to where you want it in your story. For sounds, press ▶ to listen, then choose Effect (plays once) or Loop (keeps playing). Files that no tag uses yet are marked *unused*, and tags whose file can't be found are listed under *Missing*: click one to go to that line.
+
 When typing a tag yourself, Inky suggests the files in your `images/` folder as soon as you've typed `# IMAGE `, so you don't have to remember exact file names.
 
 If a tag refers to a file that isn't there (or the capital letters don't match), a warning appears in the issue list at the top of the window and next to the line, without needing to play the story to that point.

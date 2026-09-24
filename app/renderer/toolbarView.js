@@ -9,6 +9,7 @@ var events = {
     didSetTitle: () => {},
     toggleSidebar: () => {},
     toggleFlow: () => {},
+    toggleAssets: () => {},
     navigateBack: () => {},
     navigateForward: () => {}
 };
@@ -124,6 +125,11 @@ $(document).ready(function() {
 
     $("#toolbar .knot-toggle.button").on("click", function(event) {
         events.toggleSidebar("#knot-stitch-wrapper", ".knot-toggle.button");
+        event.preventDefault();
+    });
+
+    $("#toolbar .assets-toggle.button").on("click", function(event) {
+        events.toggleAssets();
         event.preventDefault();
     });
 

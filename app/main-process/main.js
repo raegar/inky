@@ -401,6 +401,9 @@ app.on('ready', function () {
         showFlow: (item, focusedWindow) => {
             if (focusedWindow) focusedWindow.webContents.send('toggle-flow-view');
         },
+        showAssets: (item, focusedWindow) => {
+            if (focusedWindow) focusedWindow.webContents.send('toggle-assets-view');
+        },
         addWatchExpression: (item, focusedWindow) => {
             focusedWindow.webContents.send("add-watch-expression");
         },

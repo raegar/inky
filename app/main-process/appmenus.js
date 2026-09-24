@@ -414,6 +414,11 @@ function refresh() {
                     click: callbacks.showFlow
                 },
                 {
+                    label: i18n._('Images and Audio...'),
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.showAssets
+                },
+                {
                     label: i18n._('Tags visible'),
                     type: "checkbox",
                     checked: true,
