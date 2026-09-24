@@ -118,11 +118,12 @@
         this.oneShots = [];
 
         // Browsers block audio until the player has clicked or pressed a key, which
-        // silences a loop that starts on the very first line. Retry it on first input.
+        // silences a loop that starts on the very first line. Retry it on first input
+        // (but only if that's why it isn't playing, not if someone paused it).
         var self = this;
         if (typeof document !== 'undefined') {
             var retry = function () {
-                if (self.loop && self.loop.el.paused) self._start(self.loop.el);
+                if (self.loop && self.loop.el.paused && self.loop.el.autoplayBlocked) self._start(self.loop.el);
             };
             document.addEventListener('pointerdown', retry, true);
             document.addEventListener('keydown', retry, true);
@@ -131,6 +132,11 @@
 
     AudioPlayer.prototype._create = function (src, loop) {
         var el = document.createElement('audio');
+        // Paused with its controls, as opposed to by the browser because it was taken off
+        // the page (which Inky does when it rebuilds the story view)
+        el.pausedByUser = false;
+        el.addEventListener('pause', function () { if (el.isConnected) el.pausedByUser = true; });
+        el.addEventListener('play', function () { el.pausedByUser = false; });
         el.src = src;
         el.loop = loop;
         el.muted = this.muted;
@@ -140,8 +146,11 @@
     };
 
     AudioPlayer.prototype._start = function (el) {
+        el.autoplayBlocked = false;
         var playing = el.play();
-        if (playing && playing.catch) playing.catch(function () {});
+        if (playing && playing.catch) playing.catch(function (err) {
+            if (err && err.name === 'NotAllowedError') el.autoplayBlocked = true;
+        });
     };
 
     // Plays a sound effect once. Returns its <audio> element.
@@ -161,7 +170,7 @@
     // already looping it carries on uninterrupted. Returns its <audio> element.
     AudioPlayer.prototype.playLoop = function (src) {
         if (this.loop && this.loop.src === src) {
-            if (this.loop.el.paused) this._start(this.loop.el);
+            if (this.loop.el.paused && !this.loop.el.pausedByUser) this._start(this.loop.el);
             return this.loop.el;
         }
         this.stopLoop();
