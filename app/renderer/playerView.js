@@ -114,8 +114,29 @@ function contentReady() {
     }
 }
 
+// Inky recompiles after every edit and replays the choices made so far to get back
+// to the same point. Sounds from that history shouldn't all fire again, so while
+// replaying we skip sound effects and just note which loop ought to be playing,
+// then switch to it (or carry on, if it's already playing) once the replay ends.
+let _replaying = false;
+let _replayLoop = null;     // { url, $slot } - loop that should be playing after the replay
+let _freshStartPending = false;
+
+// The next playthrough is a restart from the beginning rather than a replay after
+// an edit, so play everything as normal.
+function markFreshStart() {
+    _freshStartPending = true;
+}
+
 function prepareForNewPlaythrough(sessionId) {
-    audioPlayer.stopAllNow();
+    if (_freshStartPending) {
+        audioPlayer.stopAllNow();
+        _replaying = false;
+    } else {
+        _replaying = true;
+    }
+    _freshStartPending = false;
+    _replayLoop = null;
     _mediaDirCache = {};
 
     $textBuffer = $("#player .hiddenBuffer .innerText");
@@ -125,6 +146,24 @@ function prepareForNewPlaythrough(sessionId) {
     $textBuffer.height(0);
 }
 
+
+function replayComplete(sessionId) {
+    showSessionView(sessionId);
+
+    if (!_replaying) return;
+    _replaying = false;
+
+    const wanted = _replayLoop;
+    _replayLoop = null;
+    if (wanted) {
+        // Returns the existing element if this loop is already playing, and moves it
+        // into the new story view where its tag was
+        wanted.$slot.replaceWith(audioPlayer.playLoop(wanted.url));
+    } else {
+        audioPlayer.stopLoop();
+    }
+    $textBuffer.find('.audioLoopSlot').remove();
+}
 
 function addTextSection(text)
 {
@@ -270,7 +309,11 @@ function addTags(tags)
         if (!tag) { remaining.push(rawTag); continue; }
 
         if (tag.property === 'AUDIOSTOP') {
-            audioPlayer.stop(tag.val);
+            if (!_replaying) {
+                audioPlayer.stop(tag.val);
+            } else if (tag.val.toLowerCase() !== 'once') {
+                _replayLoop = null;
+            }
             continue;
         }
 
@@ -294,10 +337,17 @@ function addTags(tags)
             appendAndMaybeFade($img);
         }
         else if (tag.property === 'AUDIO') {
-            appendAndMaybeFade($(audioPlayer.playOnce(media.url)));
+            if (!_replaying) appendAndMaybeFade($(audioPlayer.playOnce(media.url)));
         }
         else if (tag.property === 'AUDIOLOOP') {
-            appendAndMaybeFade($(audioPlayer.playLoop(media.url)));
+            if (_replaying) {
+                // Placeholder for where the loop's controls go, filled in by replayComplete
+                const $slot = $("<span class='audioLoopSlot'></span>");
+                $textBuffer.append($slot);
+                _replayLoop = { url: media.url, $slot: $slot };
+            } else {
+                appendAndMaybeFade($(audioPlayer.playLoop(media.url)));
+            }
         }
     }
 
@@ -440,6 +490,8 @@ exports.PlayerView = {
     addLineError: addLineError,
     addEvaluationResult: addEvaluationResult,
     showSessionView: showSessionView,
+    replayComplete: replayComplete,
+    markFreshStart: markFreshStart,
     previewStepBack: previewStepBack,
     setInstructionPrefix: setInstructionPrefix,
     setAnimationEnabled: setAnimationEnabled,
