@@ -18,7 +18,9 @@ var choiceSequence = [];
 var currentTurnIdx = -1;
 var replaying = false;
 
-var issues = [];
+var issues = [];         // from the compiler, since the last compile started
+var mediaIssues = [];    // missing image/audio files, from the issue checker
+var mediaIssueChecker = null;
 var selectedIssueIdx = -1;
 
 var locationInSourceCallbackObj = null;
@@ -43,6 +45,10 @@ function setProject(p) {
 function resetErrors() {
     issues = [];
     selectedIssueIdx = -1;
+}
+
+function allIssues() {
+    return issues.concat(mediaIssues);
 }
 
 function buildCompileInstruction() {
@@ -210,12 +216,13 @@ setInterval(() => {
 // --------------------------------------------------------
 
 ipc.on("next-issue", () => {
-    if( issues.length > 0 ) {
+    var current = allIssues();
+    if( current.length > 0 ) {
         selectedIssueIdx++;
-        if( selectedIssueIdx >= issues.length )
+        if( selectedIssueIdx >= current.length )
             selectedIssueIdx = 0;
 
-        events.selectIssue(issues[selectedIssueIdx]);
+        events.selectIssue(current[selectedIssueIdx]);
     }
 });
 
@@ -229,6 +236,13 @@ ipc.on("compile-complete", (event, fromSessionId) => {
     updateCompilerIsBusy(false);
 
     events.compileComplete(fromSessionId);
+
+    // Check media tags now the files have been saved for compiling. Any issues so far
+    // are sent again, since compileComplete clears them from the editor.
+    mediaIssues = mediaIssueChecker ? mediaIssueChecker() : [];
+    var current = allIssues();
+    if( current.length > 0 )
+        events.errorsAdded([], current);
 });
 
 
@@ -249,8 +263,8 @@ ipc.on("play-generated-errors", (event, errors, fromSessionId) => {
     // Finished compiling for sure
     updateCompilerIsBusy(false);
 
-    issues = errors;
-    events.errorsAdded(errors);
+    issues = issues.concat(errors);
+    events.errorsAdded(errors, allIssues());
 });
 
 ipc.on("play-generated-tags", (event, tags, fromSessionId) => {
@@ -408,8 +422,9 @@ exports.LiveCompiler = {
     exportJson: exportJson,
     setEdited: () => { lastEditorChange = Date.now(); },
     setEvents: (e) => { events = e; },
-    getIssues: () => { return issues; },
-    getIssuesForFilename: (filename) => _.filter(issues, i => i.filename == filename),
+    getIssues: allIssues,
+    getIssuesForFilename: (filename) => _.filter(allIssues(), i => i.filename == filename),
+    setMediaIssueChecker: (checker) => { mediaIssueChecker = checker; },
     choose: choose,
     rewind: rewind,
     stepBack: stepBack,

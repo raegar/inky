@@ -27,6 +27,7 @@ const InkProject = require("./inkProject.js").InkProject;
 const NavHistory = require("./navHistory.js").NavHistory;
 const GotoAnything = require("./goto.js").GotoAnything;
 const i18n = require("./i18n.js");
+const { ProjectMedia } = require("./projectMedia.js");
 
 InkProject.setEvents({
     "newProject": (project) => {
@@ -87,6 +88,8 @@ NavHistory.setEvents({
 })
 
 
+LiveCompiler.setMediaIssueChecker(() => ProjectMedia.findIssues(InkProject.currentProject));
+
 LiveCompiler.setEvents({
     resetting: (sessionId) => {
         
@@ -111,17 +114,18 @@ LiveCompiler.setEvents({
             });
         }
     },
-    errorsAdded: (errors) => {
-        for(var i=0; i<errors.length; i++) {
-            var error = errors[i];
-            if( error.filename == InkProject.currentProject.activeInkFile.relativePath() )
-                EditorView.addError(error);
-
+    // newErrors: just arrived from the compiler. allIssues: everything current, including
+    // warnings about missing image/audio files.
+    errorsAdded: (newErrors, allIssues) => {
+        for(var i=0; i<newErrors.length; i++) {
+            var error = newErrors[i];
             if( error.type == "RUNTIME ERROR" || error.type == "RUNTIME WARNING" )
                 PlayerView.addLineError(error, () => gotoIssue(error));
         }
 
-        ToolbarView.updateIssueSummary(errors);
+        var activeFile = InkProject.currentProject.activeInkFile.relativePath();
+        EditorView.setErrors(allIssues.filter(issue => issue.filename == activeFile));
+        ToolbarView.updateIssueSummary(allIssues.slice());
     },
     playerPrompt: (replaying, doneCallback) => {
 

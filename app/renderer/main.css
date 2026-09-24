@@ -266,8 +266,9 @@ img.issue-icon.warning {
 }
 
 #toolbar .issue-popup .line-no {
-  font-family: Monaco, sans-serif;
-  width: 30px;
+  font-family: Monaco, Consolas, monospace;
+  padding-left: 5px;
+  white-space: nowrap;
   height: 30px;
   background: #F9F9F9;
   border-right: 1px solid #E1E1E1;
