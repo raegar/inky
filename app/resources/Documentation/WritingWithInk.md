@@ -3483,7 +3483,8 @@ This version also includes a special tag that inserts an image immediately after
 ### How it works
 - Save your image in a web-safe format (for example, `.png` or `.jpg`).
 - Place it in an `images/` folder alongside your `.ink` file.
-- Reference the file name exactly in your tag (for example, `# IMAGE filename.png`).
+- Reference the file name exactly in your tag (for example, `# IMAGE filename.png`). `# IMAGE: filename.png` works too.
+- Capital letters must match: `Temple.png` and `temple.png` are different files once your game is on the web, so Inky shows an error if they don't match.
 - When the story runs, the tagged image is displayed immediately after the line of text.
 
 ### Example folder structure
@@ -3526,8 +3527,9 @@ You can also chain several for light comic‑panel storytelling:
 Choose Media → Images → Insert Image…
 - The chosen file is copied to your project’s `images/` folder.
 - If the name already exists, you’ll be asked whether to Use Existing, Add as New (auto‑renames), or Cancel.
-- The tag `# IMAGE filename.ext` is inserted at the cursor.
-- If the project isn’t saved yet, copying occurs once a save‑path exists.
+- If the name already exists and you choose Add as New, the copy gets a number, e.g. `temple-2.png`.
+- The tag `# IMAGE filename.ext` is inserted at the cursor. If there's text after the cursor, it moves onto the next line so it doesn't become part of the tag.
+- If you haven't saved your project yet, Inky asks you to save it first, because the `images/` folder goes next to your main `.ink` file.
 
 ## 4) Supported Formats and Tips
 
@@ -3538,6 +3540,8 @@ Good practice:
 - compress PNGs/JPEGs for speed
 - aim for ~1920px width backgrounds or ~1080px for mobile
 - keep consistent dimensions across sequences
+
+When you use File → Export for Web, your `images/` and `audio/` folders are copied into the exported game, and the tags work exactly as they do in Inky.
 
 
 # Part 8: Using Audio
@@ -3584,7 +3588,7 @@ For example:
 
 ## 1) Audio Behaviour
 
-`# AUDIO` plays once and removes itself when finished. `# AUDIOLOOP` plays continuously until replaced or stopped. If you omit an extension, the player searches for `.wav`, `.mp3`, `.ogg` (in that order).
+`# AUDIO` plays once and removes itself when finished. Several effects can play at the same time. `# AUDIOLOOP` plays continuously until replaced or stopped; if the same loop is already playing, it carries on without restarting. If you omit an extension, `AUDIO` looks for `.wav`, `.mp3`, `.ogg` and `AUDIOLOOP` looks for `.mp3`, `.ogg`, `.wav` (in that order).
 
 ## 2) Stopping and Fading Audio
 
@@ -3601,6 +3605,7 @@ Media → Audio → Insert Audio Loop… or Insert Audio Effect…
 - Files copy into `audio/` (folder created if missing).
 - Duplicate names prompt: Use Existing / Add as New / Cancel.
 - Corresponding tag is inserted automatically.
+- If you haven't saved your project yet, Inky asks you to save it first.
 
 ## 4) Player Controls and Mute
 
@@ -3624,11 +3629,16 @@ Both settings persist per view.
 
 ## 6) File Structure and Persistence
 
-Audio files live in `audio/` beside your `.ink` file. Settings (loop state, mute, control visibility) persist until the story resets.
+Audio files live in `audio/` beside your `.ink` file. The Show Audio Controls and Mute Audio settings are remembered between sessions.
+
+While you're writing, Inky replays your choices every time you edit the story, to get you back to the same point. Sound effects aren't replayed when this happens (otherwise every sound so far would play at once), and the background loop carries on if it hasn't changed. To hear everything from the beginning, press the Restart button above the story.
 
 ## 7) Troubleshooting
 
-- Issue: “AUDIO not found” → Wrong path or extension → Check `audio/` folder and case.
+- Issue: “Audio not found” → Wrong path or extension → Check the `audio/` folder and the spelling.
+- “did you mean …? Capital letters matter” → The tag's capitals don't match the file name → Change the tag to match exactly.
+- A sound effect didn't play after an edit → Effects aren't replayed while you edit → Press Restart, or make the choice again.
+- In an exported web game, the first loop doesn't start until you click → Browsers block sound until the player interacts with the page → This is normal; it starts on the first click or key press.
 - Loop cuts out early → Later `# AUDIOSTOP` in same turn → Remove or move tag.
 - Controls missing → toggled off in menu → Enable Show Audio Controls.
 - Overlapping sounds → too many one‑shots → Add `# AUDIOSTOP: once` between.
