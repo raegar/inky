@@ -419,6 +419,10 @@ ipc.on("insertSnippet", (event, snippetContent) => {
     EditorView.insert(snippetContent);
 });
 
+ipc.on("insertTag", (event, tag) => {
+    EditorView.insertTag(tag);
+});
+
 function setInkFileWhenReady(getInkFile, callback) {
     const trySet = () => {
         const inkFile = getInkFile();
