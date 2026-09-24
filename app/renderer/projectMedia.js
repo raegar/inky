@@ -7,9 +7,6 @@ const fs = require("fs");
 const url = require("url");
 const InkMedia = require('../export-for-web-template/inkMedia.js');
 
-const IMAGE_EXTENSIONS = ['png','jpg','jpeg','gif','webp','bmp','svg'];
-const AUDIO_EXTENSIONS = ['mp3','ogg','wav','m4a','aac','flac','aiff','aif','opus','webm'];
-
 // Directory listings, cached so that replaying a long story or checking every tag doesn't
 // hit the disk each time. Cleared whenever the story is recompiled.
 let dirCache = {};
@@ -79,7 +76,7 @@ function resolve(projectDir, property, val) {
 function listFiles(projectDir, property) {
     if (!projectDir) return [];
     const isAudio = property === 'AUDIO' || property === 'AUDIOLOOP';
-    const extensions = isAudio ? AUDIO_EXTENSIONS : IMAGE_EXTENSIONS;
+    const extensions = isAudio ? InkMedia.AUDIO_FILE_TYPES : InkMedia.IMAGE_FILE_TYPES;
     const files = [];
     const walk = (dir, prefix) => {
         let entries;
@@ -141,8 +138,6 @@ function findIssues(project) {
 }
 
 exports.ProjectMedia = {
-    IMAGE_EXTENSIONS,
-    AUDIO_EXTENSIONS,
     clearCache,
     projectDirFor,
     resolve,

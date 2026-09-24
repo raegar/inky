@@ -193,6 +193,15 @@ exports.EditorView = {
         editor.focus();
     },
     gotoLine: (row, col) => { editor.gotoLine(row, col); editor.focus(); },
+    // Moves the cursor to a point on screen (e.g. where files were dropped), if it's
+    // over the editor. Returns whether it was.
+    moveCursorToScreenPoint: (x, y) => {
+        const rect = editor.container.getBoundingClientRect();
+        if( x < rect.left || x > rect.right || y < rect.top || y > rect.bottom ) return false;
+        editor.moveCursorToPosition(editor.renderer.screenToTextCoordinates(x, y));
+        editor.clearSelection();
+        return true;
+    },
     addError: addError,
     setErrors: setErrors,
     setFiles: (inkFiles) => {

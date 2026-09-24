@@ -6,6 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const Inklecate = require("./inklecate.js").Inklecate;
 const Menu = electron.Menu;
+const shell = electron.shell;
 const i18n = require("./i18n/i18n.js");
 
 var electronWindowOptions = {
@@ -54,6 +55,14 @@ function ProjectWindow(filePath) {
     electronWindowOptions.title = i18n._("Inky");
     this.browserWindow = new BrowserWindow(electronWindowOptions);
     this.browserWindow.loadURL("file://" + __dirname + "/../renderer/index.html");
+
+    // Never navigate away from the editor, which would lose unsaved work: e.g. by clicking
+    // a link written into the story, or dropping a file the page doesn't handle. Web links
+    // open in the browser instead.
+    this.browserWindow.webContents.on('will-navigate', (event, url) => {
+        event.preventDefault();
+        if( /^https?:/i.test(url) ) shell.openExternal(url);
+    });
     this.browserWindow.setSheetOffset(49);
 
     this.safeToClose = false;

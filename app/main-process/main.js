@@ -9,6 +9,7 @@ const {Inklecate} = require("./inklecate.js");
 const { fstat } = require('original-fs');
 const {fs} = require("fs");
 const path = require("path");
+const InkMedia = require("../export-for-web-template/inkMedia.js");
 
 
 function inkJSNeedsUpdating() {
@@ -105,22 +106,81 @@ async function insertMediaFile(options) {
     });
     if (result.canceled || !result.filePaths || result.filePaths.length === 0) return;
 
-    const destDir = path.join(path.dirname(mainInkPath), options.folder);
+    const tag = await importMediaFile(win, mainInkPath, result.filePaths[0], options.tag);
+    if (tag) win.browserWindow.webContents.send('insertTag', tag);
+}
+
+// Copies a media file into the project's images/ or audio/ folder. Returns the tag to
+// insert for it (e.g. "# IMAGE temple.png"), or null if cancelled or the copy failed.
+async function importMediaFile(win, mainInkPath, sourcePath, tagName) {
+    const isImage = tagName == 'IMAGE';
+    const destDir = path.join(path.dirname(mainInkPath), isImage ? InkMedia.IMAGE_FOLDER : InkMedia.AUDIO_FOLDER);
     let imported;
     try {
-        imported = await importAssetWithPrompt(win, result.filePaths[0], destDir, options.kindLabel);
+        imported = await importAssetWithPrompt(win, sourcePath, destDir, isImage ? i18n._('Image') : i18n._('Audio'));
     } catch (err) {
         dialog.showMessageBox(win.browserWindow, {
             type: 'error',
             message: i18n._('Could not copy the file into your project'),
             detail: err.message
         });
-        return;
+        return null;
     }
-    if (imported.cancelled) return;
-
-    win.browserWindow.webContents.send('insertTag', `# ${options.tag} ${imported.filename}`);
+    if (imported.cancelled) return null;
+    return `# ${tagName} ${imported.filename}`;
 }
+
+function fileTypeOf(filePath) {
+    return path.extname(filePath).slice(1).toLowerCase();
+}
+
+// Files dragged onto a project window from the desktop: images and audio are copied into
+// the project with their tags inserted at the drop point, and ink files are opened.
+ipcMain.on("import-dropped-files", async (event, filePaths) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    if (!win) return;
+
+    const isImage = p => InkMedia.IMAGE_FILE_TYPES.includes(fileTypeOf(p));
+    const isAudio = p => InkMedia.AUDIO_FILE_TYPES.includes(fileTypeOf(p));
+    const isInk = p => fileTypeOf(p) == 'ink';
+
+    filePaths.filter(isInk).forEach(p => ProjectWindow.open(p));
+
+    const unsupported = filePaths.filter(p => !isImage(p) && !isAudio(p) && !isInk(p));
+    if (unsupported.length > 0) {
+        await dialog.showMessageBox(win.browserWindow, {
+            type: 'info',
+            message: i18n._('Inky can only add images and audio to your story'),
+            detail: unsupported.map(p => path.basename(p)).join("\n")
+        });
+    }
+
+    const media = filePaths.filter(p => isImage(p) || isAudio(p));
+    if (media.length == 0) return;
+
+    const mainInkPath = await ensureProjectSaved(win);
+    if (!mainInkPath) return;
+
+    const tags = [];
+    for (const filePath of media) {
+        let tagName = 'IMAGE';
+        if (isAudio(filePath)) {
+            const choice = await dialog.showMessageBox(win.browserWindow, {
+                type: 'question',
+                buttons: [ i18n._('Sound Effect'), i18n._('Background Loop'), i18n._('Skip') ],
+                defaultId: 0,
+                cancelId: 2,
+                message: i18n._('How should this audio play?') + ` (${path.basename(filePath)})`,
+                detail: i18n._('A sound effect plays once. A background loop keeps playing until it is stopped or replaced.')
+            });
+            if (choice.response == 2) continue;
+            tagName = choice.response == 0 ? 'AUDIO' : 'AUDIOLOOP';
+        }
+        const tag = await importMediaFile(win, mainInkPath, filePath, tagName);
+        if (tag) tags.push(tag);
+    }
+    if (tags.length > 0) win.browserWindow.webContents.send('insertTag', tags.join("\n"));
+});
 
 ipcMain.handle("try-close", async (event) =>{
     return dialog.showMessageBox({
@@ -136,8 +196,6 @@ ipcMain.handle("try-close", async (event) =>{
     })
     
 })
-
-const AUDIO_EXTENSIONS = ['mp3','ogg','wav','m4a','aac','flac','aiff','aif','opus','webm'];
 
 // Helper: copy selected asset into project folder with conflict prompt
 async function importAssetWithPrompt(win, sourcePath, destDir, kindLabel) {
@@ -375,25 +433,19 @@ app.on('ready', function () {
         insertImage: () => insertMediaFile({
             title: i18n._('Insert Image'),
             filterName: i18n._('Images'),
-            extensions: ['png','jpg','jpeg','gif','webp','bmp','svg'],
-            folder: 'images',
-            kindLabel: i18n._('Image'),
+            extensions: InkMedia.IMAGE_FILE_TYPES,
             tag: 'IMAGE'
         }),
         insertAudioLoop: () => insertMediaFile({
             title: i18n._('Insert Audio Loop'),
             filterName: i18n._('Audio'),
-            extensions: AUDIO_EXTENSIONS,
-            folder: 'audio',
-            kindLabel: i18n._('Audio'),
+            extensions: InkMedia.AUDIO_FILE_TYPES,
             tag: 'AUDIOLOOP'
         }),
         insertAudioSFX: () => insertMediaFile({
             title: i18n._('Insert Audio Effect'),
             filterName: i18n._('Audio'),
-            extensions: AUDIO_EXTENSIONS,
-            folder: 'audio',
-            kindLabel: i18n._('Audio'),
+            extensions: InkMedia.AUDIO_FILE_TYPES,
             tag: 'AUDIO'
         }),
         insertAudioStopAll: (item, focussedWindow) => {

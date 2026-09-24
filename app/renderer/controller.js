@@ -427,6 +427,28 @@ ipc.on("insertTag", (event, tag) => {
     EditorView.insertTag(tag);
 });
 
+// Dropping image or audio files from the desktop copies them into the project and inserts
+// their tags where they were dropped (or at the cursor, if dropped outside the editor).
+// Listens in the capture phase so the editor doesn't treat them as dropped text.
+const isFileDrag = (e) => e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+document.addEventListener("dragover", (e) => {
+    if( !isFileDrag(e) ) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+}, true);
+document.addEventListener("drop", (e) => {
+    if( !isFileDrag(e) ) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const filePaths = Array.from(e.dataTransfer.files)
+        .map(file => electron.webUtils.getPathForFile(file))
+        .filter(filePath => filePath);
+    if( filePaths.length == 0 ) return;
+    EditorView.moveCursorToScreenPoint(e.clientX, e.clientY);
+    ipc.send("import-dropped-files", filePaths);
+}, true);
+
 function setInkFileWhenReady(getInkFile, callback) {
     const trySet = () => {
         const inkFile = getInkFile();
