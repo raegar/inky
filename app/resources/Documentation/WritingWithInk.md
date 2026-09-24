@@ -54,6 +54,7 @@
     * [7) Troubleshooting](#7-troubleshooting)
     * [8) Format Advice](#8-format-advice)
     * [9) Example Recap](#9-example-recap)
+  * [Part 9: Seeing Your Story's Shape](#part-9-seeing-your-storys-shape)
 </details>
 
 ## Introduction
@@ -3661,3 +3662,19 @@ Use `.mp3` or `.ogg` for loops/music. Use `.wav` for short effects. Keep file si
 	# AUDIOLOOP forest_ambience.mp3
 	# AUDIOSTOP: loop
 	# AUDIOSTOP
+
+
+# Part 9: Seeing Your Story's Shape
+
+The **Narrative Flow** panel (the crossed-arrows button in the toolbar, or View → Narrative Flow…) shows how the knots and stitches in your story connect. Choose **Graph** to see it as a map:
+
+- Each box is a knot or stitch, and each arrow is a divert. Arrows from a choice are labelled with the choice's text.
+- **Start** is the top of your story. Follow the arrows down from it to see every route a player can take.
+- A dotted arrow from a knot to its first stitch means the knot runs straight on into that stitch.
+- Boxes filled in blue are the ones your current playthrough has visited, and the one outlined in yellow is where the story is now. Play the story and watch the route grow.
+- A dashed box means **nothing leads here**: no divert or choice goes to it, so players will never see it.
+- A **!** badge means the ink compiler found a problem in that knot, for example a "loose end" where the story runs out without a choice or divert. Hover over the box to read it.
+- A small bar under a box means it can end the story (`-> END` or `-> DONE`).
+- A red box is a divert to a name that doesn't exist, usually a typo.
+
+Click any box to jump to it in the editor. Hold Ctrl (or Cmd) and use the mouse wheel over the graph to zoom.
