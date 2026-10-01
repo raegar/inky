@@ -516,17 +516,26 @@ function markPlayPath(nodesById, edgesByKey) {
   };
   turns.forEach((turn, i) => {
     const chosen = i > 0 ? turns[i - 1].chosen : null;
+    let flows = turn.flows;
     if (chosen) {
-      const first = turn.flows[0];
-      const leadsToFirst = (e) => first && (e.to === first || first.indexOf(e.to + '.') === 0);
+      // The text straight after a choice usually comes from the choice's own content, which
+      // is still in the flow that offered it, so the divert comes after that text
+      const stillIn = (from) => { let n = 0; while (n < flows.length && flows[n] === from) n++; return n; };
+      const leadsOn = (e) => {
+        const next = flows[stillIn(e.from)];
+        return !next || next === e.to || next.indexOf(e.to + '.') === 0;
+      };
       const candidates = Array.from(edgesByKey.values()).filter(e => e.labels.indexOf(chosen) !== -1);
-      const edge = candidates.find(e => e.from === last && (!first || leadsToFirst(e)))
-        || candidates.find(e => leadsToFirst(e))
-        || candidates.find(e => e.from === last)
-        || (!first ? candidates[0] : null);
-      if (edge) { visit(edge.from); visit(edge.to); }
+      const edge = candidates.find(e => e.from === last && leadsOn(e))
+        || candidates.find(leadsOn)
+        || candidates.find(e => e.from === last);
+      if (edge) {
+        visit(edge.from);
+        visit(edge.to);
+        flows = flows.slice(stillIn(edge.from));
+      }
     }
-    turn.flows.forEach(visit);
+    flows.forEach(visit);
   });
   if (last !== START && nodesById.has(last)) nodesById.get(last).current = true;
 }

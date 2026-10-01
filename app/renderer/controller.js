@@ -93,6 +93,8 @@ NavHistory.setEvents({
 
 LiveCompiler.setMediaIssueChecker(() => ProjectMedia.findIssues(InkProject.currentProject));
 
+PlayPath.trackOutputLength({ length: PlayerView.outputLength, setLength: PlayerView.setOutputLength });
+
 LiveCompiler.setEvents({
     resetting: (sessionId) => {
         
@@ -108,7 +110,7 @@ LiveCompiler.setEvents({
     selectIssue: gotoIssue,
     textAdded: (text) => {
         var offset = PlayerView.addTextSection(text);
-        if( text.trim().length > 0 ) PlayPath.textAdded(offset);
+        if( text.trim().length > 0 ) PlayPath.textAdded(offset, text.length);
     },
     tagsAdded: (tags) => {
         PlayerView.addTags(tags);
