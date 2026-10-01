@@ -182,16 +182,10 @@ function addTextSection(text)
 
     $paragraph.html(textAsSpans);
 
-    // Keep track of the offset of each word into the content,
-    // starting from the end of the last choice (it's global in the current play session)
-    var previousContentLength = 0;
-    var $existingLastContent = $textBuffer.children(".storyText").last();
-    if( $existingLastContent ) {
-        var range = $existingLastContent.data("range");
-        if( range ) {
-            previousContentLength = range.start + range.length + 1; // + 1 for newline
-        }
-    }
+    // Keep track of the offset of each word into the content, counted the way inklecate
+    // counts it, from the start of the play session. The text includes its newline, and
+    // addTags adds the text of the line's tags.
+    var previousContentLength = outputLength();
     $paragraph.data("range", {start: previousContentLength, length: text.length});
 
     // Append the actual content
@@ -226,6 +220,20 @@ function addTextSection(text)
     return previousContentLength;
 }
 
+// How long the story's output is so far, as inklecate counts it for source lookups
+function outputLength() {
+    var range = $textBuffer.children(".storyText").last().data("range");
+    return range ? range.start + range.length : 0;
+}
+
+// Corrects the length when inklecate's own count differs (e.g. because of extra spaces
+// in the source that don't appear in the story), so the next paragraph starts in the
+// right place
+function setOutputLength(length) {
+    var range = $textBuffer.children(".storyText").last().data("range");
+    if( range && length > range.start ) range.length = length - range.start;
+}
+
 let currentInkFile = null;
 
 function setCurrentInkFile(inkFile) {
@@ -235,6 +243,10 @@ function setCurrentInkFile(inkFile) {
 function addTags(tags)
 {
     if (!tags || !Array.isArray(tags) || tags.length === 0) return;
+
+    // inklecate counts a tag's text (and the space before its #) as part of the output
+    var range = $textBuffer.children(".storyText").last().data("range");
+    if (range) range.length += tags.reduce((total, tag) => total + 1 + String(tag).length, 0);
 
     // Collect any tags we don't explicitly handle so we can show them as text.
     const remaining = [];
@@ -442,6 +454,8 @@ exports.PlayerView = {
     contentReady: contentReady,
     prepareForNewPlaythrough: prepareForNewPlaythrough,
     addTextSection: addTextSection,
+    outputLength: outputLength,
+    setOutputLength: setOutputLength,
     addTags: addTags,
     addChoice: addChoice,
     addTerminatingMessage: addTerminatingMessage,
