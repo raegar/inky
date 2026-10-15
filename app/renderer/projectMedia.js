@@ -103,6 +103,9 @@ function mediaTagsIn(tagText) {
         if (text.indexOf('}') !== -1 && text.indexOf('{') === -1) text = text.slice(0, text.indexOf('}'));
         const tag = InkMedia.parseTag(text);
         if (!tag || !InkMedia.isMediaProperty(tag.property) || tag.property === 'BACKGROUND' || !tag.val) continue;
+        // Ink evaluates a delay expression (e.g. delay={wait}) during playback.
+        // The source scanner can still check the filename without warning about it.
+        if (tag.error && /\s+delay\s*=\s*.*\{/i.test(text)) delete tag.error;
         if (tag.val.indexOf('{') !== -1) {
             const pattern = tag.val.split(/\{[^}]*\}?/).map(s => s.replace(/[.*+?^$()|[\]\\]/g, '\\$&')).join('.*');
             tag.dynamic = new RegExp('^' + pattern + '$', 'i');
@@ -130,7 +133,7 @@ function scanTags(project) {
                     tag.inkFile = inkFile;
                     tag.row = row;
                     tag.path = null;
-                    if (!tag.dynamic) {
+                    if (!tag.dynamic && !tag.error) {
                         const result = resolve(projectDir, tag.property, tag.val);
                         tag.path = result.path || null;
                         tag.error = result.error;

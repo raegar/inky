@@ -948,6 +948,26 @@ img.issue-icon.warning {
   margin: 0.5em 0;
 }
 
+/* Optional start delay when inserting an audio effect. */
+.audioEffectDialog {
+  width: 360px; max-width: calc(100vw - 40px); padding: 22px;
+  border: 1px solid #bbb; border-radius: 6px; background: #fff; color: #444;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+.audioEffectDialog::backdrop { background: rgba(0,0,0,0.35); }
+.audioEffectDialog h3 { margin: 0 0 8px; font-size: 18px; }
+.audioEffectDialog .audioEffectFile { overflow-wrap: anywhere; }
+.audioEffectDialog label { display: block; margin-bottom: 6px; }
+.audioEffectDialog input { width: 100%; }
+.audioEffectDialog #audio-effect-help { font-size: 12px; margin: 8px 0 20px; }
+.audioEffectButtons { display: flex; justify-content: flex-end; gap: 8px; }
+.window.dark .audioEffectDialog,
+.window.focus .audioEffectDialog,
+.window.contrast .audioEffectDialog { background: #252525; color: #ddd; border-color: #666; }
+.window.dark .audioEffectDialog input,
+.window.focus .audioEffectDialog input,
+.window.contrast .audioEffectDialog input { background: #333; color: #ddd; }
+
 /* Assets panel (assetsView.js) */
 #assets-wrapper:not(.hidden) { display: flex; flex-direction: column; }
 #assets-wrapper .assetsBody { flex: 1 1 auto; overflow-y: auto; padding: 0 10px 12px; }

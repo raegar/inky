@@ -7,6 +7,7 @@
 // Supported tags (either "KEY: value" or "KEY value"):
 //   # IMAGE temple.png         image shown after the line (from images/)
 //   # AUDIO door.wav           sound effect, played once (from audio/)
+//   # AUDIO door.wav delay=2.5 sound effect, starting after 2.5 seconds
 //   # AUDIOLOOP forest         background loop, replacing any current loop
 //   # AUDIOSTOP                fade out everything
 //   # AUDIOSTOP: loop          fade out the loop only
@@ -35,7 +36,20 @@
         if (typeof tag !== 'string') return null;
         var match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*|\s+|$)([\s\S]*)$/.exec(tag);
         if (!match) return null;
-        return { property: match[1].toUpperCase(), val: match[2].trim() };
+        var parsed = { property: match[1].toUpperCase(), val: match[2].trim() };
+        if (parsed.property === 'AUDIO') {
+            var delay = /\s+delay\s*=\s*(.*?)\s*$/i.exec(parsed.val);
+            if (delay) {
+                parsed.val = parsed.val.slice(0, delay.index).trim();
+                var seconds = Number(delay[1]);
+                if (!/^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(delay[1]) || !isFinite(seconds) || seconds > 2147483.647) {
+                    parsed.error = 'Audio delay must be a non-negative number of seconds (up to 2147483.647).';
+                } else {
+                    parsed.delaySeconds = seconds;
+                }
+            }
+        }
+        return parsed;
     }
 
     function isMediaProperty(property) {
@@ -116,6 +130,7 @@
         this.muted = false;
         this.loop = null;       // { el, src }
         this.oneShots = [];
+        this.pendingOneShots = new Map();
 
         // Browsers block audio until the player has clicked or pressed a key, which
         // silences a loop that starts on the very first line. Retry it on first input
@@ -124,6 +139,9 @@
         if (typeof document !== 'undefined') {
             var retry = function () {
                 if (self.loop && self.loop.el.paused && self.loop.el.autoplayBlocked) self._start(self.loop.el);
+                self.oneShots.forEach(function (el) {
+                    if (el.paused && el.autoplayBlocked) self._start(el);
+                });
             };
             document.addEventListener('pointerdown', retry, true);
             document.addEventListener('keydown', retry, true);
@@ -153,17 +171,44 @@
         });
     };
 
-    // Plays a sound effect once. Returns its <audio> element.
-    AudioPlayer.prototype.playOnce = function (src) {
+    // Plays a sound effect once, optionally after a delay in seconds.
+    // Returns its <audio> element immediately, so controls and mute still work.
+    AudioPlayer.prototype.playOnce = function (src, delaySeconds) {
         var self = this;
         var el = this._create(src, false);
         this.oneShots.push(el);
+        // Playing manually with the controls overrides the scheduled start.
+        el.addEventListener('play', function () { self._cancelPending(el); });
         el.addEventListener('ended', function () {
+            self._cancelPending(el);
             self.oneShots = self.oneShots.filter(function (a) { return a !== el; });
             if (el.parentNode) el.parentNode.removeChild(el);
         });
-        this._start(el);
+        if (isFinite(delaySeconds) && delaySeconds > 0 && delaySeconds <= 2147483.647) {
+            this.pendingOneShots.set(el, setTimeout(function () {
+                self.pendingOneShots.delete(el);
+                self._start(el);
+            }, delaySeconds * 1000));
+        } else {
+            this._start(el);
+        }
         return el;
+    };
+
+    AudioPlayer.prototype._cancelPending = function (el) {
+        if (!this.pendingOneShots.has(el)) return;
+        clearTimeout(this.pendingOneShots.get(el));
+        this.pendingOneShots.delete(el);
+    };
+
+    // Rewinding or recompiling must not leave old effects scheduled to fire.
+    AudioPlayer.prototype.cancelPendingOneShots = function () {
+        var self = this;
+        this.pendingOneShots.forEach(function (_, el) {
+            self._cancelPending(el);
+            self.oneShots = self.oneShots.filter(function (a) { return a !== el; });
+            fadeOutAndRemove(el, 0);
+        });
     };
 
     // Starts a background loop, replacing any other loop. If the same file is
@@ -188,6 +233,7 @@
     };
 
     AudioPlayer.prototype.stopOneShots = function (fadeMs) {
+        this.cancelPendingOneShots();
         var els = this.oneShots;
         this.oneShots = [];
         var ms = fadeMs != null ? fadeMs : this.fadeMs;

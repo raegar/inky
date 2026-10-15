@@ -132,7 +132,7 @@ async function insertMediaFile(options) {
     if (result.canceled || !result.filePaths || result.filePaths.length === 0) return;
 
     const tag = await importMediaFile(win, mainInkPath, result.filePaths[0], options.tag);
-    if (tag) win.browserWindow.webContents.send('insertTag', tag);
+    if (tag) win.browserWindow.webContents.send(options.tag === 'AUDIO' ? 'insert-audio-effect' : 'insertTag', tag);
 }
 
 // Copies a media file into the project's images/ or audio/ folder. Returns the tag to

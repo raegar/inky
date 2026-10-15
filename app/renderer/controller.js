@@ -31,6 +31,7 @@ const NavHistory = require("./navHistory.js").NavHistory;
 const GotoAnything = require("./goto.js").GotoAnything;
 const i18n = require("./i18n.js");
 const { ProjectMedia } = require("./projectMedia.js");
+const { configureAudioEffect } = require('./audioEffectDialog.js');
 
 InkProject.setEvents({
     "newProject": (project) => {
@@ -498,6 +499,14 @@ ipc.on("insertSnippet", (event, snippetContent) => {
 
 ipc.on("insertTag", (event, tag) => {
     EditorView.insertTag(tag);
+});
+
+let audioEffectInsertions = Promise.resolve();
+ipc.on('insert-audio-effect', (event, tag) => {
+    audioEffectInsertions = audioEffectInsertions.then(async () => {
+        const configured = await configureAudioEffect(tag);
+        if (configured) EditorView.insertTag(configured);
+    }).catch(err => console.error('Could not configure audio effect', err));
 });
 
 // Dropping image or audio files from the desktop copies them into the project and inserts

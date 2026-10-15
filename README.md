@@ -17,6 +17,12 @@
 - **Export to JSON**: Although this isn't necessary if you're using the [ink-Unity-integration plugin](https://assetstore.unity.com/packages/tools/integration/ink-unity-integration-60055), Inky allows you to export to ink's compiled JSON format, which is especially useful in other ink runtime implementations, such as [inkjs](https://github.com/y-lohse/inkjs), for running **ink** on the web.
 - **File watching**: Modern text editors, including Inky, watch for changes to files on disk, so that if you change them it reflects those changes. This is especially helpful if you keep your **ink** in source control.
 
+## Inky Media audio guide
+
+Use **Media → Audio → Insert Audio Loop…** for background audio, or **Insert Audio Effect…** for a sound that plays once. When inserting an effect, **Start delay (seconds)** lets you schedule its start; leave it blank or at `0` for immediate playback.
+
+For example, `Lightning splits the sky. # AUDIO thunder.wav delay=2.5` starts the sound 2.5 seconds after the tag is reached. Delays work in the editor and exported web games. See [Using Audio and delayed audio effects](app/resources/Documentation/WritingWithInk.md#delayed-audio-effects) for the walkthrough, stopping behaviour and troubleshooting. The same guide is available in the app's documentation window.
+
 ## Project status
 
 Inky has been used extensively on multiple projects by different developers. Nevertheless, it isn't as robust or feature complete as many other text editors you may have used, since it's specialist software made by game developers in their spare time.
