@@ -94,8 +94,19 @@ function contentReady() {
 
     // Scroll?
     if( shouldAnimate() ) {
-        
-        var offset = newHeight + 60 - $scrollContainer.outerHeight(); // +60 because: ("#player .innerText { padding: 10px 0 50px 0; }")
+
+        var maxOffset = newHeight + 60 - $scrollContainer.outerHeight(); // +60 because: ("#player .innerText { padding: 10px 0 50px 0; }")
+
+        // Bring the start of the latest turn (just below the divider added when a choice is
+        // made) to the top, so it can be read from the beginning, rather than scrolling to
+        // the end and past any text that doesn't fit. The first turn starts at the top.
+        var turnStart = 0;
+        var $divider = $textBuffer.children("hr").last();
+        if( $divider.length ) {
+            var container = $scrollContainer[0];
+            turnStart = $divider[0].getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 8;
+        }
+        var offset = Math.max(0, Math.min(turnStart, maxOffset));
 
         // Need to set previous, as it was reset when we reset height
         $scrollContainer.animate({scrollTop: savedScrollTop}, 0);
