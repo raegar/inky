@@ -131,6 +131,7 @@ function prepareForNewPlaythrough(sessionId) {
         audioPlayer.stopAllNow();
         _replaying = false;
     } else {
+        audioPlayer.cancelPendingOneShots();
         _replaying = true;
     }
     _freshStartPending = false;
@@ -260,6 +261,7 @@ function addTags(tags)
     for (const rawTag of tags) {
         const tag = InkMedia.parseTag(rawTag);
         if (!tag) { remaining.push(rawTag); continue; }
+        if (tag.error) { appendError(tag.error); continue; }
 
         if (tag.property === 'AUDIOSTOP') {
             if (!_replaying) {
@@ -290,7 +292,7 @@ function addTags(tags)
             appendAndMaybeFade($img);
         }
         else if (tag.property === 'AUDIO') {
-            if (!_replaying) appendAndMaybeFade($(audioPlayer.playOnce(media.url)));
+            if (!_replaying) appendAndMaybeFade($(audioPlayer.playOnce(media.url, tag.delaySeconds)));
         }
         else if (tag.property === 'AUDIOLOOP') {
             if (_replaying) {

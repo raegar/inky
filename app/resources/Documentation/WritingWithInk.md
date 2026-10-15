@@ -3570,6 +3570,8 @@ This version introduces two special tags for audio playback:
 - `# AUDIO filename` — plays the audio file once.
 - `# AUDIOLOOP filename` — plays the audio file on a loop until it is stopped or replaced.
 
+An audio effect can also have an optional start delay, for example `# AUDIO thunder.wav delay=2.5`. The delay is measured in seconds and works in both Inky Media and exported web games.
+
 For example:
 
 	The door slammed behind you. # AUDIO door_slam.mp3
@@ -3581,7 +3583,7 @@ For example:
 - Reference the file name exactly in your tag (for example, `# AUDIO filename.mp3` or `# AUDIOLOOP filename.ogg`).
 - When the story runs:
   - `AUDIO` plays the file once, then stops.
-  - `AUDIOLOOP` continues playing in the background until a new audio tag is triggered.
+  - `AUDIOLOOP` continues playing in the background until another loop replaces it or an audio stop tag stops it. Sound effects can play over the loop.
 - Useful applications:
   - `AUDIO` → sound effects (for example, footsteps, sword clash, door creak).
   - `AUDIOLOOP` → background ambience or music tracks.
@@ -3604,6 +3606,26 @@ For example:
 
 `# AUDIO` plays once and removes itself when finished. Several effects can play at the same time. `# AUDIOLOOP` plays continuously until replaced or stopped; if the same loop is already playing, it carries on without restarting. If you omit an extension, `AUDIO` looks for `.wav`, `.mp3`, `.ogg` and `AUDIOLOOP` looks for `.mp3`, `.ogg`, `.wav` (in that order).
 
+### Delayed audio effects
+
+To start an effect later, add `delay=seconds` after its filename:
+
+	Lightning splits the sky. # AUDIO thunder.wav delay=2.5
+
+This plays the thunder 2.5 seconds after the story reaches the tag. The story carries on straight away: a delay schedules the sound, rather than making the reader wait before they can choose.
+
+- Omit `delay=...`, or use `delay=0`, to play immediately.
+- Use a non-negative number of seconds. Decimals such as `0.5` and `2.5` are allowed; negative values are invalid.
+- Put the delay after the filename, separated by a space. It also works without a file extension: `# AUDIO thunder delay=2.5`.
+- Each effect has its own delay, so several effects can be scheduled independently.
+- Start delays apply to `AUDIO` effects. Background loops use `AUDIOLOOP` and start immediately.
+
+You can set the delay through **Media → Audio → Insert Audio Effect…**, or add it to an existing tag in the editor. The audio file itself does not need to be changed.
+
+`# AUDIOSTOP` and `# AUDIOSTOP: once` cancel effects that are waiting to start, as does Restart. `# AUDIOSTOP: loop` stops only the background loop and leaves scheduled effects waiting. Rewinding or editing the story cancels pending effects from the previous playthrough; replayed effects are skipped as usual.
+
+If you put an effect and a stop tag before the next choice, both tags may be reached in the same turn. The stop cancels the waiting effect, so it will never play. To let a delayed effect play while the reader considers their next choice, put its tag before that choice and put any stop tag inside a later choice or scene.
+
 ## 2) Stopping and Fading Audio
 
 Use `# AUDIOSTOP` to fade‑out and stop everything (loop + effects). Variants:
@@ -3611,17 +3633,26 @@ Use `# AUDIOSTOP` to fade‑out and stop everything (loop + effects). Variants:
 	# AUDIOSTOP: loop	← fades and stops loop only
 	# AUDIOSTOP: once	← fades and stops one‑shots only
 
-Fades last roughly half a second for smooth transitions. Tags never print text.
+Fades last roughly half a second for smooth transitions. Effects that are still waiting for their delay are cancelled immediately, without a fade. Tags never print text.
 
 ## 3) Adding Audio via Menu
 
-Media → Audio → Insert Audio Loop… or Insert Audio Effect…
-- Files copy into `audio/` (folder created if missing).
-- Duplicate names prompt: Use Existing / Add as New / Cancel.
-- Corresponding tag is inserted automatically.
-- If you haven't saved your project yet, Inky asks you to save it first.
-- You can also drag audio files onto the editor. Inky asks whether each one is a sound effect or a background loop, then adds the tag where you dropped it.
-- Typing `# AUDIO ` or `# AUDIOLOOP ` suggests the files in your `audio/` folder.
+### Insert an audio effect
+
+1. Put the cursor where you want the effect's tag in your story.
+2. Choose **Media → Audio → Insert Audio Effect…** and select an audio file.
+3. In the **Insert Audio Effect** dialog, set **Start delay (seconds)**. Leave it blank or at its default of `0` for immediate playback, or enter a value such as `2.5`.
+4. Click **Insert**. Inky adds `# AUDIO filename`, including `delay=2.5` if you entered a positive delay. Click **Cancel** to close the dialog without inserting a tag.
+
+### Insert a background loop
+
+Choose **Media → Audio → Insert Audio Loop…** and select an audio file. Inky inserts `# AUDIOLOOP filename`. Loops start immediately and keep playing until replaced or stopped.
+
+Both commands copy the selected file into `audio/`, creating the folder if needed. Duplicate names prompt **Use Existing / Add as New / Cancel**. If you haven't saved the project yet, Inky asks you to save it first.
+
+You can also drag audio files onto the editor. Inky asks whether each one is a sound effect or a background loop, then adds its tag where you dropped it. To delay an effect added this way, append `delay=seconds` to the tag yourself. The **Effect** button in the Images and Audio panel also inserts an immediate effect; you can add a delay to its tag afterwards.
+
+Typing `# AUDIO ` or `# AUDIOLOOP ` suggests the files in your `audio/` folder.
 
 ## 4) Player Controls and Mute
 
@@ -3630,6 +3661,8 @@ Toggle under Media → Audio
 - Mute Audio → global on/off for all tracks.
 
 Both settings persist per view.
+
+Muting also applies to effects that are waiting to start. If controls are visible, pressing Play on a waiting effect starts it immediately and cancels its scheduled start, so it won't restart when the delay expires.
 
 ## 5) Conditional and Dynamic Use
 
@@ -3643,6 +3676,13 @@ Both settings persist per view.
 	Lightning splits the sky.
 	# AUDIOSTOP: once
 
+You can use an Ink variable to choose the delay:
+
+	VAR thunder_delay = 2.5
+	Lightning splits the sky. # AUDIO thunder.wav delay={thunder_delay}
+
+Ink substitutes the variable's value when the tag is reached. Keep the resulting value non-negative. File warnings still check the audio filename while you edit.
+
 ## 6) File Structure and Persistence
 
 Audio files live in `audio/` beside your `.ink` file. The Show Audio Controls and Mute Audio settings are remembered between sessions.
@@ -3654,7 +3694,9 @@ While you're writing, Inky replays your choices every time you edit the story, t
 - Issue: “Audio not found” (in the player, or as a warning in the issue list) → Wrong path or extension → Check the `audio/` folder and the spelling.
 - “did you mean …? Capital letters matter” → The tag's capitals don't match the file name → Change the tag to match exactly.
 - A sound effect didn't play after an edit → Effects aren't replayed while you edit → Press Restart, or make the choice again.
-- In an exported web game, the first loop doesn't start until you click → Browsers block sound until the player interacts with the page → This is normal; it starts on the first click or key press.
+- A delayed effect never starts → Check for `AUDIOSTOP` or `AUDIOSTOP: once` reached before the delay expires. Restarting, rewinding or editing also cancels effects that are still waiting.
+- “Audio delay must be a non-negative number of seconds…” → Use a number such as `0`, `0.5` or `2.5` after `delay=`. The maximum supported delay is 2147483.647 seconds.
+- In an exported web game, a loop or effect doesn't start until you click → Browsers can block sound until the player interacts with the page. Blocked audio retries on the next click or key press.
 - Loop cuts out early → Later `# AUDIOSTOP` in same turn → Remove or move tag.
 - Controls missing → toggled off in menu → Enable Show Audio Controls.
 - Overlapping sounds → too many one‑shots → Add `# AUDIOSTOP: once` between.
@@ -3666,9 +3708,12 @@ Use `.mp3` or `.ogg` for loops/music. Use `.wav` for short effects. Keep file si
 ## 9) Example Recap
 
 	# AUDIO birds.wav
+	Lightning splits the sky. # AUDIO thunder.wav delay=2.5
 	# AUDIOLOOP forest_ambience.mp3
 	# AUDIOSTOP: loop
 	# AUDIOSTOP
+
+These are individual tag examples. Putting the final `AUDIOSTOP` immediately after the delayed thunder tag in the same turn would cancel that thunder.
 
 
 # Part 9: Seeing Your Story's Shape

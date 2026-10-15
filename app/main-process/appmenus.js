@@ -304,7 +304,7 @@ function refresh() {
                             click: callbacks.insertAudioLoop
                         },
                         {
-                            label: i18n._('Audio Effect...'),
+                            label: i18n._('Insert Audio Effect...'),
                             enabled: callbacks.isFocusedWindow,
                             click: callbacks.insertAudioSFX
                         },

@@ -81,10 +81,11 @@
                 // Detect tags of the form "X: Y" or "X Y"
                 var splitTag = InkMedia.parseTag(tag);
                 if( !splitTag ) continue;
+                if( splitTag.error ) { console.warn(splitTag.error); continue; }
 
                 // AUDIO: src - sound effect, played once
                 if( splitTag.property == "AUDIO" ) {
-                    audio.playOnce(mediaPath("AUDIO", splitTag.val));
+                    audio.playOnce(mediaPath("AUDIO", splitTag.val), splitTag.delaySeconds);
                 }
 
                 // AUDIOLOOP: src - background loop, replacing any current loop
